@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>勤怠管理</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  body { font-family: sans-serif; max-width: 400px; margin: 40px auto; padding: 0 16px; }
+  input, select, button { width: 100%; padding: 10px; margin: 6px 0; font-size: 16px; box-sizing: border-box; }
+  button { background: #2563eb; color: white; border: none; border-radius: 6px; }
+  #status { margin-top: 20px; padding: 12px; background: #f3f4f6; border-radius: 6px; white-space: pre-line; }
+</style>
+</head>
+<body>
+<h2>勤怠管理</h2>
+
+<div id="login-box">
+  <input id="email" type="email" placeholder="メールアドレス">
+  <input id="password" type="password" placeholder="パスワード">
+  <button onclick="login()">ログイン</button>
+  <p id="login-error" style="color:red"></p>
+</div>
+
+<div id="main-box" style="display:none">
+  <p id="welcome"></p>
+  <select id="site-select"></select>
+  <button id="action-btn"></button>
+  <p id="status"></p>
+</div>
+
+<script>
+const supabaseUrl = 'https://clymwlhxnkpwukuoblga.supabase.co';
+const supabaseKey = 'sb_publishable_npAygzNwa6ERwIRUpHabHA_Djm_BFNu';
+const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+let employee = null;
+let todayRecord = null;
+
+async function login() {
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) {
+    document.getElementById('login-error').textContent = 'ログインできませんでした';
+    return;
+  }
+  init();
+}
+
+async function init() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const { data: emp } = await supabase
+    .from('employees')
+    .select('*')
+    .eq('auth_user_id', user.id)
+    .single();
+  employee = emp;
+
+  document.getElementById('login-box').style.display = 'none';
+  document.getElementById('main-box').style.display = 'block';
+  document.getElementById('welcome').textContent = employee.name + ' さん';
+
+  const { data: sites } = await supabase.from('sites').select('*');
+  const select = document.getElementById('site-select');
+  select.innerHTML = sites.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: record } = await supabase
+    .from('time_records')
+    .select('*')
+    .eq('employee_id', employee.id)
+    .eq('date', today)
+    .maybeSingle();
+  todayRecord = record;
+
+  updateButton();
+}
+
+function updateButton() {
+  const btn = document.getElementById('action-btn');
+  const status = document.getElementById('status');
+  btn.style.display = 'block';
+  if (!todayRecord) {
+    btn.textContent = '出勤';
+    btn.onclick = clockIn;
+    status.textContent = '本日はまだ打刻していません';
+  } else if (!todayRecord.clock_out) {
+    btn.textContent = '退勤';
+    btn.onclick = clockOut;
+    status.textContent = '出勤時刻: ' + new Date(todayRecord.clock_in).toLocaleTimeString('ja-JP');
+  } else {
+    btn.style.display = 'none';
+    status.textContent = '本日の勤務は完了しました\n出勤: ' + new Date(todayRecord.clock_in).toLocaleTimeString('ja-JP') + ' / 退勤: ' + new Date(todayRecord.clock_out).toLocaleTimeString('ja-JP');
+  }
+}
+
+function getPosition() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve(null)
+    );
+  });
+}
+
+async function clockIn() {
+  const pos = await getPosition();
+  const siteId = document.getElementById('site-select').value;
+  const today = new Date().toISOString().slice(0, 10);
+  const { data, error } = await supabase.from('time_records').insert({
+    employee_id: employee.id,
+    date: today,
+    site_id: siteId,
+    clock_in: new Date().toISOString(),
+    clock_in_lat: pos ? pos.lat : null,
+    clock_in_lng: pos ? pos.lng : null
+  }).select().single();
+  if (error) { alert('エラー: ' + error.message); return; }
+  todayRecord = data;
+  updateButton();
+}
+
+async function clockOut() {
+  const pos = await getPosition();
+  const { data, error } = await supabase.from('time_records').update({
+    clock_out: new Date().toISOString(),
+    clock_out_lat: pos ? pos.lat : null,
+    clock_out_lng: pos ? pos.lng : null
+  }).eq('id', todayRecord.id).select().single();
+  if (error) { alert('エラー: ' + error.message); return; }
+  todayRecord = data;
+  updateButton();
+}
+
+init();
+</script>
+</body>
+</html>
