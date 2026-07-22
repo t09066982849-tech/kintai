@@ -66,7 +66,6 @@ async function loadRequests() {
       <td>${fmtTime(r.time_records.clock_out)}</td>
       <td>${fmtTime(r.requested_clock_in)}</td>
       <td>${fmtTime(r.requested_clock_out)}</td>
-      <td>${r.reason || ''}</td>
       <td>
         <button class="small" onclick="approve(${r.id}, ${r.time_record_id}, '${r.requested_clock_in || ''}', '${r.requested_clock_out || ''}')">承認</button>
         <button class="small" style="background:#9ca3af" onclick="reject(${r.id})">却下</button>
