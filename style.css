@@ -1,0 +1,16 @@
+body { font-family: sans-serif; max-width: 700px; margin: 40px auto; padding: 0 16px; }
+input, select, button, textarea { width: 100%; padding: 10px; margin: 6px 0; font-size: 16px; box-sizing: border-box; }
+button { background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; }
+button.small { width: auto; padding: 4px 10px; font-size: 13px; }
+#status { margin-top: 20px; padding: 12px; background: #f3f4f6; border-radius: 6px; white-space: pre-line; }
+table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+th, td { border: 1px solid #ddd; padding: 6px; text-align: center; }
+th { background: #f3f4f6; }
+.month-nav { display: flex; align-items: center; gap: 8px; margin-top: 20px; }
+.month-nav button { width: auto; padding: 8px 14px; }
+.month-nav span { flex: 1; text-align: center; font-weight: bold; }
+.modal-bg { display:none; position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.4); align-items:center; justify-content:center; }
+.modal { background: white; padding: 20px; border-radius: 8px; width: 90%; max-width: 400px; }
+.status-pending { color: #b45309; }
+.status-approved { color: #15803d; }
+.status-rejected { color: #b91c1c; }
