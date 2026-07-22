@@ -6,10 +6,13 @@
 <title>勤怠管理</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-  body { font-family: sans-serif; max-width: 400px; margin: 40px auto; padding: 0 16px; }
+  body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 0 16px; }
   input, select, button { width: 100%; padding: 10px; margin: 6px 0; font-size: 16px; box-sizing: border-box; }
   button { background: #2563eb; color: white; border: none; border-radius: 6px; }
   #status { margin-top: 20px; padding: 12px; background: #f3f4f6; border-radius: 6px; white-space: pre-line; }
+  table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+  th, td { border: 1px solid #ddd; padding: 6px; text-align: center; }
+  th { background: #f3f4f6; }
 </style>
 </head>
 <body>
@@ -27,6 +30,12 @@
   <select id="site-select"></select>
   <button id="action-btn"></button>
   <p id="status"></p>
+
+  <h3>今月の履歴</h3>
+  <table>
+    <thead><tr><th>日付</th><th>現場</th><th>出勤</th><th>退勤</th><th>勤務時間</th></tr></thead>
+    <tbody id="history-body"></tbody>
+  </table>
 </div>
 
 <script>
@@ -77,6 +86,7 @@ async function init() {
   todayRecord = record;
 
   updateButton();
+  loadHistory();
 }
 
 function updateButton() {
@@ -95,6 +105,41 @@ function updateButton() {
     btn.style.display = 'none';
     status.textContent = '本日の勤務は完了しました\n出勤: ' + new Date(todayRecord.clock_in).toLocaleTimeString('ja-JP') + ' / 退勤: ' + new Date(todayRecord.clock_out).toLocaleTimeString('ja-JP');
   }
+}
+
+async function loadHistory() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const monthStr = String(month).padStart(2, '0');
+  const startDate = `${year}-${monthStr}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const endDate = `${year}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
+
+  const { data: records, error } = await supabaseClient
+    .from('time_records')
+    .select('*, sites(name)')
+    .eq('employee_id', employee.id)
+    .gte('date', startDate)
+    .lte('date', endDate)
+    .order('date', { ascending: true });
+
+  if (error) { console.error(error); return; }
+
+  const tbody = document.getElementById('history-body');
+  tbody.innerHTML = records.map(r => {
+    const inTime = r.clock_in ? new Date(r.clock_in).toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : '-';
+    const outTime = r.clock_out ? new Date(r.clock_out).toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : '-';
+    let workTime = '-';
+    if (r.clock_in && r.clock_out) {
+      const diffMs = new Date(r.clock_out) - new Date(r.clock_in);
+      const hours = Math.floor(diffMs / 3600000);
+      const mins = Math.round((diffMs % 3600000) / 60000);
+      workTime = hours + '時間' + mins + '分';
+    }
+    const siteName = r.sites ? r.sites.name : '-';
+    return `<tr><td>${r.date}</td><td>${siteName}</td><td>${inTime}</td><td>${outTime}</td><td>${workTime}</td></tr>`;
+  }).join('');
 }
 
 function getPosition() {
@@ -122,6 +167,7 @@ async function clockIn() {
   if (error) { alert('エラー: ' + error.message); return; }
   todayRecord = data;
   updateButton();
+  loadHistory();
 }
 
 async function clockOut() {
@@ -134,6 +180,7 @@ async function clockOut() {
   if (error) { alert('エラー: ' + error.message); return; }
   todayRecord = data;
   updateButton();
+  loadHistory();
 }
 </script>
 </body>
