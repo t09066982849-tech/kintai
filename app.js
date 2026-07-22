@@ -130,7 +130,6 @@ function openModal(recordId) {
   document.getElementById('modal-date').textContent = modalRecord.date;
   document.getElementById('req-clock-in').value = modalRecord.clock_in ? new Date(modalRecord.clock_in).toTimeString().slice(0,5) : '';
   document.getElementById('req-clock-out').value = modalRecord.clock_out ? new Date(modalRecord.clock_out).toTimeString().slice(0,5) : '';
-  document.getElementById('req-reason').value = '';
   document.getElementById('modal-bg').style.display = 'flex';
 }
 
@@ -141,9 +140,6 @@ function closeModal() {
 async function submitCorrection() {
   const inVal = document.getElementById('req-clock-in').value;
   const outVal = document.getElementById('req-clock-out').value;
-  const reason = document.getElementById('req-reason').value;
-
-  if (!reason) { alert('理由を入力してください'); return; }
 
   const requestedIn = inVal ? `${modalRecord.date}T${inVal}:00+09:00` : null;
   const requestedOut = outVal ? `${modalRecord.date}T${outVal}:00+09:00` : null;
@@ -152,8 +148,7 @@ async function submitCorrection() {
     time_record_id: modalRecord.id,
     employee_id: employee.id,
     requested_clock_in: requestedIn,
-    requested_clock_out: requestedOut,
-    reason: reason
+    requested_clock_out: requestedOut
   });
 
   if (error) { alert('エラー: ' + error.message); return; }
