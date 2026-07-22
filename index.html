@@ -32,7 +32,7 @@
 <script>
 const supabaseUrl = 'https://clymwlhxnkpwukuoblga.supabase.co';
 const supabaseKey = 'sb_publishable_npAygzNwa6ERwIRUpHabHA_Djm_BFNu';
-const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 let employee = null;
 let todayRecord = null;
@@ -40,7 +40,7 @@ let todayRecord = null;
 async function login() {
   const email = document.getElementById('email').value;
   const password = document.getElementById('password').value;
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
   if (error) {
     document.getElementById('login-error').textContent = 'ログインできませんでした';
     return;
@@ -49,10 +49,10 @@ async function login() {
 }
 
 async function init() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await supabaseClient.auth.getUser();
   if (!user) return;
 
-  const { data: emp } = await supabase
+  const { data: emp } = await supabaseClient
     .from('employees')
     .select('*')
     .eq('auth_user_id', user.id)
@@ -63,12 +63,12 @@ async function init() {
   document.getElementById('main-box').style.display = 'block';
   document.getElementById('welcome').textContent = employee.name + ' さん';
 
-  const { data: sites } = await supabase.from('sites').select('*');
+  const { data: sites } = await supabaseClient.from('sites').select('*');
   const select = document.getElementById('site-select');
   select.innerHTML = sites.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
 
   const today = new Date().toISOString().slice(0, 10);
-  const { data: record } = await supabase
+  const { data: record } = await supabaseClient
     .from('time_records')
     .select('*')
     .eq('employee_id', employee.id)
@@ -111,7 +111,7 @@ async function clockIn() {
   const pos = await getPosition();
   const siteId = document.getElementById('site-select').value;
   const today = new Date().toISOString().slice(0, 10);
-  const { data, error } = await supabase.from('time_records').insert({
+  const { data, error } = await supabaseClient.from('time_records').insert({
     employee_id: employee.id,
     date: today,
     site_id: siteId,
@@ -126,7 +126,7 @@ async function clockIn() {
 
 async function clockOut() {
   const pos = await getPosition();
-  const { data, error } = await supabase.from('time_records').update({
+  const { data, error } = await supabaseClient.from('time_records').update({
     clock_out: new Date().toISOString(),
     clock_out_lat: pos ? pos.lat : null,
     clock_out_lng: pos ? pos.lng : null
@@ -135,8 +135,6 @@ async function clockOut() {
   todayRecord = data;
   updateButton();
 }
-
-init();
 </script>
 </body>
 </html>
