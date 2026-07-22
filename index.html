@@ -13,6 +13,9 @@
   table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
   th, td { border: 1px solid #ddd; padding: 6px; text-align: center; }
   th { background: #f3f4f6; }
+  .month-nav { display: flex; align-items: center; gap: 8px; margin-top: 20px; }
+  .month-nav button { width: auto; padding: 8px 14px; }
+  .month-nav span { flex: 1; text-align: center; font-weight: bold; }
 </style>
 </head>
 <body>
@@ -31,7 +34,12 @@
   <button id="action-btn"></button>
   <p id="status"></p>
 
-  <h3>今月の履歴</h3>
+  <h3>履歴</h3>
+  <div class="month-nav">
+    <button onclick="changeMonth(-1)">← 前月</button>
+    <span id="month-label"></span>
+    <button onclick="changeMonth(1)">次月 →</button>
+  </div>
   <table>
     <thead><tr><th>日付</th><th>現場</th><th>出勤</th><th>退勤</th><th>勤務時間</th></tr></thead>
     <tbody id="history-body"></tbody>
@@ -45,143 +53,8 @@ const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 let employee = null;
 let todayRecord = null;
+let viewYear = new Date().getFullYear();
+let viewMonth = new Date().getMonth() + 1; // 1-12
 
 async function login() {
   const email = document.getElementById('email').value;
-  const password = document.getElementById('password').value;
-  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-  if (error) {
-    document.getElementById('login-error').textContent = 'ログインできませんでした';
-    return;
-  }
-  init();
-}
-
-async function init() {
-  const { data: { user } } = await supabaseClient.auth.getUser();
-  if (!user) return;
-
-  const { data: emp } = await supabaseClient
-    .from('employees')
-    .select('*')
-    .eq('auth_user_id', user.id)
-    .single();
-  employee = emp;
-
-  document.getElementById('login-box').style.display = 'none';
-  document.getElementById('main-box').style.display = 'block';
-  document.getElementById('welcome').textContent = employee.name + ' さん';
-
-  const { data: sites } = await supabaseClient.from('sites').select('*');
-  const select = document.getElementById('site-select');
-  select.innerHTML = sites.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-
-  const today = new Date().toISOString().slice(0, 10);
-  const { data: record } = await supabaseClient
-    .from('time_records')
-    .select('*')
-    .eq('employee_id', employee.id)
-    .eq('date', today)
-    .maybeSingle();
-  todayRecord = record;
-
-  updateButton();
-  loadHistory();
-}
-
-function updateButton() {
-  const btn = document.getElementById('action-btn');
-  const status = document.getElementById('status');
-  btn.style.display = 'block';
-  if (!todayRecord) {
-    btn.textContent = '出勤';
-    btn.onclick = clockIn;
-    status.textContent = '本日はまだ打刻していません';
-  } else if (!todayRecord.clock_out) {
-    btn.textContent = '退勤';
-    btn.onclick = clockOut;
-    status.textContent = '出勤時刻: ' + new Date(todayRecord.clock_in).toLocaleTimeString('ja-JP');
-  } else {
-    btn.style.display = 'none';
-    status.textContent = '本日の勤務は完了しました\n出勤: ' + new Date(todayRecord.clock_in).toLocaleTimeString('ja-JP') + ' / 退勤: ' + new Date(todayRecord.clock_out).toLocaleTimeString('ja-JP');
-  }
-}
-
-async function loadHistory() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
-  const monthStr = String(month).padStart(2, '0');
-  const startDate = `${year}-${monthStr}-01`;
-  const lastDay = new Date(year, month, 0).getDate();
-  const endDate = `${year}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
-
-  const { data: records, error } = await supabaseClient
-    .from('time_records')
-    .select('*, sites(name)')
-    .eq('employee_id', employee.id)
-    .gte('date', startDate)
-    .lte('date', endDate)
-    .order('date', { ascending: true });
-
-  if (error) { console.error(error); return; }
-
-  const tbody = document.getElementById('history-body');
-  tbody.innerHTML = records.map(r => {
-    const inTime = r.clock_in ? new Date(r.clock_in).toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : '-';
-    const outTime = r.clock_out ? new Date(r.clock_out).toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : '-';
-    let workTime = '-';
-    if (r.clock_in && r.clock_out) {
-      const diffMs = new Date(r.clock_out) - new Date(r.clock_in);
-      const hours = Math.floor(diffMs / 3600000);
-      const mins = Math.round((diffMs % 3600000) / 60000);
-      workTime = hours + '時間' + mins + '分';
-    }
-    const siteName = r.sites ? r.sites.name : '-';
-    return `<tr><td>${r.date}</td><td>${siteName}</td><td>${inTime}</td><td>${outTime}</td><td>${workTime}</td></tr>`;
-  }).join('');
-}
-
-function getPosition() {
-  return new Promise((resolve) => {
-    if (!navigator.geolocation) { resolve(null); return; }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => resolve(null)
-    );
-  });
-}
-
-async function clockIn() {
-  const pos = await getPosition();
-  const siteId = document.getElementById('site-select').value;
-  const today = new Date().toISOString().slice(0, 10);
-  const { data, error } = await supabaseClient.from('time_records').insert({
-    employee_id: employee.id,
-    date: today,
-    site_id: siteId,
-    clock_in: new Date().toISOString(),
-    clock_in_lat: pos ? pos.lat : null,
-    clock_in_lng: pos ? pos.lng : null
-  }).select().single();
-  if (error) { alert('エラー: ' + error.message); return; }
-  todayRecord = data;
-  updateButton();
-  loadHistory();
-}
-
-async function clockOut() {
-  const pos = await getPosition();
-  const { data, error } = await supabaseClient.from('time_records').update({
-    clock_out: new Date().toISOString(),
-    clock_out_lat: pos ? pos.lat : null,
-    clock_out_lng: pos ? pos.lng : null
-  }).eq('id', todayRecord.id).select().single();
-  if (error) { alert('エラー: ' + error.message); return; }
-  todayRecord = data;
-  updateButton();
-  loadHistory();
-}
-</script>
-</body>
-</html>
