@@ -37,6 +37,7 @@ async function init() {
   document.getElementById('welcome').textContent = employee.name + ' さん(管理者)';
 
   loadRequests();
+  loadSites();
 }
 
 function fmtTime(t) {
@@ -54,7 +55,7 @@ async function loadRequests() {
 
   const tbody = document.getElementById('requests-body');
   if (requests.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8">申請中の項目はありません</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7">申請中の項目はありません</td></tr>';
     return;
   }
 
@@ -96,4 +97,33 @@ async function reject(requestId) {
     .eq('id', requestId);
   if (error) { alert('エラー: ' + error.message); return; }
   loadRequests();
+}
+
+async function loadSites() {
+  const { data: sites, error } = await supabaseClient.from('sites').select('*').order('id');
+  if (error) { console.error(error); return; }
+
+  const tbody = document.getElementById('sites-body');
+  tbody.innerHTML = sites.map(s => `
+    <tr>
+      <td>${s.name}</td>
+      <td><button class="small" style="background:#dc2626" onclick="deleteSite(${s.id})">削除</button></td>
+    </tr>
+  `).join('');
+}
+
+async function addSite() {
+  const name = document.getElementById('new-site-name').value.trim();
+  if (!name) return;
+  const { error } = await supabaseClient.from('sites').insert({ name });
+  if (error) { alert('エラー: ' + error.message); return; }
+  document.getElementById('new-site-name').value = '';
+  loadSites();
+}
+
+async function deleteSite(id) {
+  if (!confirm('削除しますか？')) return;
+  const { error } = await supabaseClient.from('sites').delete().eq('id', id);
+  if (error) { alert('エラー: ' + error.message); return; }
+  loadSites();
 }
