@@ -44,6 +44,19 @@ async function init() {
   const select = document.getElementById('site-select');
   select.innerHTML = sites.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
 
+  // 前回打刻した現場を選択状態にする
+  const { data: lastRecord } = await supabaseClient
+    .from('time_records')
+    .select('site_id')
+    .eq('employee_id', employee.id)
+    .not('site_id', 'is', null)
+    .order('date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (lastRecord && lastRecord.site_id) {
+    select.value = lastRecord.site_id;
+  }
+
   const today = new Date().toISOString().slice(0, 10);
   const { data: record } = await supabaseClient
     .from('time_records')
