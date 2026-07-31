@@ -8,6 +8,7 @@ let viewYear = new Date().getFullYear();
 let viewMonth = new Date().getMonth() + 1;
 let currentRecords = [];
 let modalRecord = null;
+let currentDateStr = null;
 
 async function login() {
   const email = document.getElementById('email').value;
@@ -44,7 +45,6 @@ async function init() {
   const select = document.getElementById('site-select');
   select.innerHTML = sites.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
 
-  // 前回打刻した現場を選択状態にする
   const { data: lastRecord } = await supabaseClient
     .from('time_records')
     .select('site_id')
@@ -57,7 +57,31 @@ async function init() {
     select.value = lastRecord.site_id;
   }
 
+  currentDateStr = new Date().toISOString().slice(0, 10);
+  const { data: record } = await supabaseClient
+    .from('time_records')
+    .select('*')
+    .eq('employee_id', employee.id)
+    .eq('date', currentDateStr)
+    .maybeSingle();
+  todayRecord = record;
+
+  updateButton();
+  loadHistory();
+
+  // 日付が変わったら自動で今日の状態に更新する
+  setInterval(refreshTodayStatus, 60000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) refreshTodayStatus();
+  });
+}
+
+async function refreshTodayStatus() {
+  if (!employee) return;
   const today = new Date().toISOString().slice(0, 10);
+  if (today === currentDateStr) return;
+
+  currentDateStr = today;
   const { data: record } = await supabaseClient
     .from('time_records')
     .select('*')
@@ -65,7 +89,6 @@ async function init() {
     .eq('date', today)
     .maybeSingle();
   todayRecord = record;
-
   updateButton();
   loadHistory();
 }
