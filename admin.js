@@ -55,7 +55,7 @@ function fmtTime(t) {
 async function loadRequests() {
   const { data: requests, error } = await supabaseClient
     .from('correction_requests')
-    .select('*, employees(name), time_records(date, clock_in, clock_out)')
+    .select('*, employees(name), time_records(date, clock_in, clock_out, site_id, sites(name)), requested_site:sites!correction_requests_requested_site_id_fkey(name)')
     .eq('status', 'pending')
     .order('created_at', { ascending: true });
 
@@ -63,7 +63,7 @@ async function loadRequests() {
 
   const tbody = document.getElementById('requests-body');
   if (requests.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7">申請中の項目はありません</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9">申請中の項目はありません</td></tr>';
     return;
   }
 
@@ -71,22 +71,25 @@ async function loadRequests() {
     <tr>
       <td>${r.employees.name}</td>
       <td>${r.time_records.date}</td>
+      <td>${r.time_records.sites ? r.time_records.sites.name : '-'}</td>
       <td>${fmtTime(r.time_records.clock_in)}</td>
       <td>${fmtTime(r.time_records.clock_out)}</td>
+      <td>${r.requested_site ? r.requested_site.name : '-'}</td>
       <td>${fmtTime(r.requested_clock_in)}</td>
       <td>${fmtTime(r.requested_clock_out)}</td>
       <td>
-        <button class="small" onclick="approve(${r.id}, ${r.time_record_id}, '${r.requested_clock_in || ''}', '${r.requested_clock_out || ''}')">承認</button>
+        <button class="small" onclick="approve(${r.id}, ${r.time_record_id}, '${r.requested_clock_in || ''}', '${r.requested_clock_out || ''}', ${r.requested_site_id || 'null'})">承認</button>
         <button class="small" style="background:#9ca3af" onclick="reject(${r.id})">却下</button>
       </td>
     </tr>
   `).join('');
 }
 
-async function approve(requestId, timeRecordId, requestedIn, requestedOut) {
+async function approve(requestId, timeRecordId, requestedIn, requestedOut, requestedSiteId) {
   const updates = {};
   if (requestedIn) updates.clock_in = requestedIn;
   if (requestedOut) updates.clock_out = requestedOut;
+  if (requestedSiteId) updates.site_id = requestedSiteId;
 
   const { error: e1 } = await supabaseClient.from('time_records').update(updates).eq('id', timeRecordId);
   if (e1) { alert('エラー: ' + e1.message); return; }
