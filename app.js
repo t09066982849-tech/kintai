@@ -20,6 +20,11 @@ async function login() {
   init();
 }
 
+async function logout() {
+  await supabaseClient.auth.signOut();
+  location.reload();
+}
+
 async function init() {
   const { data: { user } } = await supabaseClient.auth.getUser();
   if (!user) return;
@@ -77,6 +82,19 @@ function changeMonth(diff) {
   loadHistory();
 }
 
+function getAdjustedTimes(dateStr, clockIn, clockOut) {
+  const lowerBound = new Date(dateStr + 'T07:00:00+09:00');
+  const upperBound = new Date(dateStr + 'T18:00:00+09:00');
+
+  let adjustedIn = clockIn ? new Date(clockIn) : null;
+  let adjustedOut = clockOut ? new Date(clockOut) : null;
+
+  if (adjustedIn && adjustedIn < lowerBound) adjustedIn = lowerBound;
+  if (adjustedOut && adjustedOut > upperBound) adjustedOut = upperBound;
+
+  return { adjustedIn, adjustedOut };
+}
+
 async function loadHistory() {
   const monthStr = String(viewMonth).padStart(2, '0');
   document.getElementById('month-label').textContent = `${viewYear}年${viewMonth}月`;
@@ -104,9 +122,11 @@ async function loadHistory() {
   tbody.innerHTML = records.map(r => {
     const inTime = r.clock_in ? new Date(r.clock_in).toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : '-';
     const outTime = r.clock_out ? new Date(r.clock_out).toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : '-';
+
     let workTime = '-';
     if (r.clock_in && r.clock_out) {
-      const diffMs = new Date(r.clock_out) - new Date(r.clock_in);
+      const { adjustedIn, adjustedOut } = getAdjustedTimes(r.date, r.clock_in, r.clock_out);
+      const diffMs = adjustedOut - adjustedIn;
       const hours = Math.floor(diffMs / 3600000);
       const mins = Math.round((diffMs % 3600000) / 60000);
       workTime = hours + '時間' + mins + '分';
@@ -196,3 +216,5 @@ async function clockOut() {
   updateButton();
   loadHistory();
 }
+
+init();
