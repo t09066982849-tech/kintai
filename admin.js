@@ -15,6 +15,11 @@ async function login() {
   init();
 }
 
+async function logout() {
+  await supabaseClient.auth.signOut();
+  location.reload();
+}
+
 async function init() {
   const { data: { user } } = await supabaseClient.auth.getUser();
   if (!user) return;
@@ -132,7 +137,6 @@ async function deleteSite(id) {
 }
 
 function safeSheetName(name, used) {
-  // Excelのシート名で使えない文字を除去し、31文字以内に収める。重複があれば連番を付ける。
   let base = name.replace(/[\\/?*\[\]:]/g, '').slice(0, 28);
   let candidate = base;
   let i = 2;
@@ -145,7 +149,7 @@ function safeSheetName(name, used) {
 }
 
 async function exportExcel() {
-  const monthVal = document.getElementById('export-month').value; // "2026-07"
+  const monthVal = document.getElementById('export-month').value;
   if (!monthVal) { alert('月を選んでください'); return; }
 
   const [year, month] = monthVal.split('-').map(Number);
@@ -165,7 +169,6 @@ async function exportExcel() {
 
   if (records.length === 0) { alert('この月のデータがありません'); return; }
 
-  // 従業員ごとにグループ化
   const grouped = {};
   records.forEach(r => {
     const empId = r.employees ? r.employees.id : 'unknown';
