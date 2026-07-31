@@ -73,16 +73,20 @@ async function init() {
 function updateButton() {
   const btn = document.getElementById('action-btn');
   const status = document.getElementById('status');
+  const siteSelect = document.getElementById('site-select');
   btn.style.display = 'block';
   if (!todayRecord) {
+    siteSelect.disabled = false;
     btn.textContent = '出勤';
     btn.onclick = clockIn;
     status.textContent = '本日はまだ打刻していません';
   } else if (!todayRecord.clock_out) {
+    siteSelect.disabled = true;
     btn.textContent = '退勤';
     btn.onclick = clockOut;
     status.textContent = '出勤時刻: ' + new Date(todayRecord.clock_in).toLocaleTimeString('ja-JP');
   } else {
+    siteSelect.disabled = true;
     btn.style.display = 'none';
     status.textContent = '本日の勤務は完了しました\n出勤: ' + new Date(todayRecord.clock_in).toLocaleTimeString('ja-JP') + ' / 退勤: ' + new Date(todayRecord.clock_out).toLocaleTimeString('ja-JP');
   }
