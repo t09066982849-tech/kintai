@@ -131,6 +131,19 @@ async function deleteSite(id) {
   loadSites();
 }
 
+function safeSheetName(name, used) {
+  // Excelのシート名で使えない文字を除去し、31文字以内に収める。重複があれば連番を付ける。
+  let base = name.replace(/[\\/?*\[\]:]/g, '').slice(0, 28);
+  let candidate = base;
+  let i = 2;
+  while (used.has(candidate)) {
+    candidate = `${base}(${i})`;
+    i++;
+  }
+  used.add(candidate);
+  return candidate;
+}
+
 async function exportExcel() {
   const monthVal = document.getElementById('export-month').value; // "2026-07"
   if (!monthVal) { alert('月を選んでください'); return; }
@@ -142,7 +155,7 @@ async function exportExcel() {
 
   const { data: records, error } = await supabaseClient
     .from('time_records')
-    .select('*, employees(name), sites(name)')
+    .select('*, employees(id, name), sites(name)')
     .gte('date', startDate)
     .lte('date', endDate)
     .order('employee_id', { ascending: true })
@@ -150,7 +163,15 @@ async function exportExcel() {
 
   if (error) { alert('エラー: ' + error.message); return; }
 
-  const rows = records.map(r => {
+  if (records.length === 0) { alert('この月のデータがありません'); return; }
+
+  // 従業員ごとにグループ化
+  const grouped = {};
+  records.forEach(r => {
+    const empId = r.employees ? r.employees.id : 'unknown';
+    const empName = r.employees ? r.employees.name : '不明';
+    if (!grouped[empId]) grouped[empId] = { name: empName, rows: [] };
+
     const inTime = r.clock_in ? new Date(r.clock_in).toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : '';
     const outTime = r.clock_out ? new Date(r.clock_out).toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : '';
 
@@ -165,8 +186,7 @@ async function exportExcel() {
     const inGps = (r.clock_in_lat && r.clock_in_lng) ? `${r.clock_in_lat}, ${r.clock_in_lng}` : '';
     const outGps = (r.clock_out_lat && r.clock_out_lng) ? `${r.clock_out_lat}, ${r.clock_out_lng}` : '';
 
-    return {
-      '従業員': r.employees ? r.employees.name : '',
+    grouped[empId].rows.push({
       '日付': r.date,
       '現場': r.sites ? r.sites.name : '',
       '出勤時刻': inTime,
@@ -174,12 +194,18 @@ async function exportExcel() {
       '勤務時間': workTime,
       '出勤位置': inGps,
       '退勤位置': outGps
-    };
+    });
   });
 
-  const ws = XLSX.utils.json_to_sheet(rows);
-  ws['!cols'] = [{wch:14},{wch:12},{wch:14},{wch:10},{wch:10},{wch:10},{wch:20},{wch:20}];
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, `${monthVal}`);
+  const usedNames = new Set();
+
+  Object.values(grouped).forEach(group => {
+    const ws = XLSX.utils.json_to_sheet(group.rows);
+    ws['!cols'] = [{wch:12},{wch:14},{wch:10},{wch:10},{wch:10},{wch:20},{wch:20}];
+    const sheetName = safeSheetName(group.name, usedNames);
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  });
+
   XLSX.writeFile(wb, `勤怠データ_${monthVal}.xlsx`);
 }
