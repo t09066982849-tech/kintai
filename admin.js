@@ -36,6 +36,9 @@ async function init() {
   document.getElementById('main-box').style.display = 'block';
   document.getElementById('welcome').textContent = employee.name + ' さん(管理者)';
 
+  const now = new Date();
+  document.getElementById('export-month').value = now.toISOString().slice(0, 7);
+
   loadRequests();
   loadSites();
 }
@@ -126,4 +129,57 @@ async function deleteSite(id) {
   const { error } = await supabaseClient.from('sites').delete().eq('id', id);
   if (error) { alert('エラー: ' + error.message); return; }
   loadSites();
+}
+
+async function exportExcel() {
+  const monthVal = document.getElementById('export-month').value; // "2026-07"
+  if (!monthVal) { alert('月を選んでください'); return; }
+
+  const [year, month] = monthVal.split('-').map(Number);
+  const startDate = `${monthVal}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const endDate = `${monthVal}-${String(lastDay).padStart(2, '0')}`;
+
+  const { data: records, error } = await supabaseClient
+    .from('time_records')
+    .select('*, employees(name), sites(name)')
+    .gte('date', startDate)
+    .lte('date', endDate)
+    .order('employee_id', { ascending: true })
+    .order('date', { ascending: true });
+
+  if (error) { alert('エラー: ' + error.message); return; }
+
+  const rows = records.map(r => {
+    const inTime = r.clock_in ? new Date(r.clock_in).toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : '';
+    const outTime = r.clock_out ? new Date(r.clock_out).toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : '';
+
+    let workTime = '';
+    if (r.clock_in && r.clock_out) {
+      const diffMs = new Date(r.clock_out) - new Date(r.clock_in);
+      const hours = Math.floor(diffMs / 3600000);
+      const mins = Math.round((diffMs % 3600000) / 60000);
+      workTime = hours + '時間' + mins + '分';
+    }
+
+    const inGps = (r.clock_in_lat && r.clock_in_lng) ? `${r.clock_in_lat}, ${r.clock_in_lng}` : '';
+    const outGps = (r.clock_out_lat && r.clock_out_lng) ? `${r.clock_out_lat}, ${r.clock_out_lng}` : '';
+
+    return {
+      '従業員': r.employees ? r.employees.name : '',
+      '日付': r.date,
+      '現場': r.sites ? r.sites.name : '',
+      '出勤時刻': inTime,
+      '退勤時刻': outTime,
+      '勤務時間': workTime,
+      '出勤位置': inGps,
+      '退勤位置': outGps
+    };
+  });
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:14},{wch:12},{wch:14},{wch:10},{wch:10},{wch:10},{wch:20},{wch:20}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, `${monthVal}`);
+  XLSX.writeFile(wb, `勤怠データ_${monthVal}.xlsx`);
 }
