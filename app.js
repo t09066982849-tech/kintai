@@ -9,6 +9,7 @@ let viewMonth = new Date().getMonth() + 1;
 let currentRecords = [];
 let modalRecord = null;
 let currentDateStr = null;
+let allSites = [];
 
 async function login() {
   const email = document.getElementById('email').value;
@@ -42,6 +43,7 @@ async function init() {
   document.getElementById('welcome').textContent = employee.name + ' さん';
 
   const { data: sites } = await supabaseClient.from('sites').select('*');
+  allSites = sites;
   const select = document.getElementById('site-select');
   select.innerHTML = sites.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
 
@@ -69,7 +71,6 @@ async function init() {
   updateButton();
   loadHistory();
 
-  // 日付が変わったら自動で今日の状態に更新する
   setInterval(refreshTodayStatus, 60000);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) refreshTodayStatus();
@@ -188,6 +189,11 @@ async function loadHistory() {
 function openModal(recordId) {
   modalRecord = currentRecords.find(r => r.id === recordId);
   document.getElementById('modal-date').textContent = modalRecord.date;
+
+  const reqSiteSelect = document.getElementById('req-site-select');
+  reqSiteSelect.innerHTML = allSites.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  if (modalRecord.site_id) reqSiteSelect.value = modalRecord.site_id;
+
   document.getElementById('req-clock-in').value = modalRecord.clock_in ? new Date(modalRecord.clock_in).toTimeString().slice(0,5) : '';
   document.getElementById('req-clock-out').value = modalRecord.clock_out ? new Date(modalRecord.clock_out).toTimeString().slice(0,5) : '';
   document.getElementById('modal-bg').style.display = 'flex';
@@ -200,6 +206,7 @@ function closeModal() {
 async function submitCorrection() {
   const inVal = document.getElementById('req-clock-in').value;
   const outVal = document.getElementById('req-clock-out').value;
+  const siteId = document.getElementById('req-site-select').value;
 
   const requestedIn = inVal ? `${modalRecord.date}T${inVal}:00+09:00` : null;
   const requestedOut = outVal ? `${modalRecord.date}T${outVal}:00+09:00` : null;
@@ -208,7 +215,8 @@ async function submitCorrection() {
     time_record_id: modalRecord.id,
     employee_id: employee.id,
     requested_clock_in: requestedIn,
-    requested_clock_out: requestedOut
+    requested_clock_out: requestedOut,
+    requested_site_id: siteId
   });
 
   if (error) { alert('エラー: ' + error.message); return; }
