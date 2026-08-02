@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>スケジュール</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<h2>スケジュール</h2>
+
+<div id="login-box">
+  <input id="email" type="email" placeholder="メールアドレス">
+  <input id="password" type="password" placeholder="パスワード">
+  <button onclick="login()">ログイン</button>
+  <p id="login-error" style="color:red"></p>
+</div>
+
+<div id="main-box" style="display:none">
+  <p id="welcome"></p>
+  <button style="background:#9ca3af" onclick="logout()">ログアウト</button>
+
+  <div class="month-nav">
+    <button onclick="changeMonth(-1)">← 前月</button>
+    <span id="month-label"></span>
+    <button onclick="changeMonth(1)">次月 →</button>
+  </div>
+
+  <table>
+    <thead><tr><th>日付</th><th>従業員</th><th>種類</th><th>内容</th><th>時間</th></tr></thead>
+    <tbody id="schedule-body"></tbody>
+  </table>
+</div>
+
+<script src="schedule.js"></script>
+</body>
+</html>
