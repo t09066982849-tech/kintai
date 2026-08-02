@@ -21,27 +21,39 @@
   <p id="welcome"></p>
   <button style="background:#9ca3af" onclick="logout()">ログアウト</button>
 
-  <h3>予定を追加</h3>
-  <label>日付</label>
-  <input type="date" id="new-date">
-  <label>件名</label>
-  <input type="text" id="new-title" placeholder="例:○○現場打合せ">
-  <label>開始時刻(任意)</label>
-  <input type="time" id="new-start">
-  <label>終了時刻(任意)</label>
-  <input type="time" id="new-end">
-  <button onclick="addEvent()">追加</button>
-
   <div class="month-nav">
     <button onclick="changeMonth(-1)">← 前月</button>
     <span id="month-label"></span>
     <button onclick="changeMonth(1)">次月 →</button>
   </div>
 
-  <table>
-    <thead><tr><th>日付</th><th>従業員</th><th>種類</th><th>内容</th><th>時間</th><th>操作</th></tr></thead>
-    <tbody id="schedule-body"></tbody>
-  </table>
+  <div class="calendar" id="calendar"></div>
+</div>
+
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <h3 id="modal-title">予定を追加</h3>
+    <p id="modal-date-label"></p>
+
+    <div id="event-view" style="display:none">
+      <p><strong id="view-title"></strong></p>
+      <p id="view-employee"></p>
+      <p id="view-time"></p>
+      <button id="view-delete-btn" style="background:#dc2626" onclick="deleteCurrentEvent()">削除</button>
+      <button style="background:#9ca3af" onclick="closeModal()">閉じる</button>
+    </div>
+
+    <div id="event-form">
+      <label>件名</label>
+      <input type="text" id="new-title" placeholder="例:○○現場打合せ">
+      <label>開始時刻(任意)</label>
+      <input type="time" id="new-start">
+      <label>終了時刻(任意)</label>
+      <input type="time" id="new-end">
+      <button onclick="addEvent()">追加</button>
+      <button style="background:#9ca3af" onclick="closeModal()">キャンセル</button>
+    </div>
+  </div>
 </div>
 
 <script src="schedule.js"></script>
