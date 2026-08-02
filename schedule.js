@@ -43,6 +43,9 @@ async function init() {
   document.getElementById('main-box').style.display = 'block';
   document.getElementById('welcome').textContent = employee.name + ' さん';
 
+  const today = new Date().toISOString().slice(0, 10);
+  document.getElementById('new-date').value = today;
+
   loadSchedule();
 }
 
@@ -72,18 +75,53 @@ async function loadSchedule() {
 
   const tbody = document.getElementById('schedule-body');
   if (items.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5">予定がありません</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6">予定がありません</td></tr>';
     return;
   }
 
   tbody.innerHTML = items.map(i => {
     const timeStr = (i.start_time && i.end_time) ? `${i.start_time.slice(0,5)}〜${i.end_time.slice(0,5)}` : '-';
+    const canDelete = i.employee_id === employee.id || employee.is_admin;
+    const deleteBtn = canDelete ? `<button class="small" style="background:#dc2626" onclick="deleteEvent(${i.id})">削除</button>` : '-';
     return `<tr>
       <td>${i.date}</td>
       <td>${i.employees ? i.employees.name : '-'}</td>
       <td>${typeLabel[i.type] || i.type}</td>
       <td>${i.title || '-'}</td>
       <td>${timeStr}</td>
+      <td>${deleteBtn}</td>
     </tr>`;
   }).join('');
+}
+
+async function addEvent() {
+  const date = document.getElementById('new-date').value;
+  const title = document.getElementById('new-title').value.trim();
+  const start = document.getElementById('new-start').value;
+  const end = document.getElementById('new-end').value;
+
+  if (!date || !title) { alert('日付と件名を入力してください'); return; }
+
+  const { error } = await supabaseClient.from('schedules').insert({
+    employee_id: employee.id,
+    date: date,
+    type: 'event',
+    title: title,
+    start_time: start || null,
+    end_time: end || null
+  });
+
+  if (error) { alert('エラー: ' + error.message); return; }
+
+  document.getElementById('new-title').value = '';
+  document.getElementById('new-start').value = '';
+  document.getElementById('new-end').value = '';
+  loadSchedule();
+}
+
+async function deleteEvent(id) {
+  if (!confirm('削除しますか？')) return;
+  const { error } = await supabaseClient.from('schedules').delete().eq('id', id);
+  if (error) { alert('エラー: ' + error.message); return; }
+  loadSchedule();
 }
