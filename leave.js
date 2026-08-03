@@ -108,7 +108,7 @@ function getApproverNameForStage(request) {
 async function loadApprovalList() {
   const { data: items, error } = await supabaseClient
     .from('leave_requests')
-    .select('*, employees(name, department)')
+    .select('*, employees!leave_requests_employee_id_fkey(name, department)')
     .eq('status', 'pending')
     .order('created_at', { ascending: true });
 
@@ -198,7 +198,7 @@ async function reflectToSchedule(request) {
 async function approveRequest(id) {
   const { data: request, error } = await supabaseClient
     .from('leave_requests')
-    .select('*, employees(name, department)')
+    .select('*, employees!leave_requests_employee_id_fkey(name, department)')
     .eq('id', id)
     .single();
   if (error) { alert('エラー: ' + error.message); return; }
