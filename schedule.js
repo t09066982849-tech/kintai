@@ -70,7 +70,7 @@ async function loadSchedule() {
 
   const { data: items, error } = await supabaseClient
     .from('schedules')
-    .select('*, employees(name), schedule_members(employee_id, employees(name))')
+    .select('*, employees(name), schedule_members(employee_id, employees:employees!schedule_members_employee_id_fkey(name))')
     .lte('date', endDate)
     .or(`end_date.gte.${startDate},end_date.is.null`)
     .order('date', { ascending: true });
