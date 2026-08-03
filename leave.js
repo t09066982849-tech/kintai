@@ -1,47 +1,15 @@
-const supabaseUrl = 'https://clymwlhxnkpwukuoblga.supabase.co';
-const supabaseKey = 'sb_publishable_npAygzNwa6ERwIRUpHabHA_Djm_BFNu';
-const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
-
 let employee = null;
 
 const typeLabel = { paid_leave: '有給休暇', business_trip: '出張' };
 const stageLabel = { manager: '部長承認待ち', director: '常務承認待ち', president: '社長承認待ち', done: '承認完了' };
 
-// 承認者の役職名
 const PRESIDENT_NAME = '伊豆倉 寿信';
 const DIRECTOR_NAME = '伊豆倉 米郎';
 const MANAGER_NAME_BY_DEPT = { civil: '山本 英嗣', accounting: '佐藤 秀樹' };
 
-async function login() {
-  const email = document.getElementById('email').value;
-  const password = document.getElementById('password').value;
-  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-  if (error) {
-    document.getElementById('login-error').textContent = 'ログインできませんでした';
-    return;
-  }
-  init();
-}
-
-async function logout() {
-  await supabaseClient.auth.signOut();
-  location.reload();
-}
-
 async function init() {
-  const { data: { user } } = await supabaseClient.auth.getUser();
-  if (!user) { document.getElementById('login-box').style.display = 'block'; return; }
-
-  const { data: emp } = await supabaseClient
-    .from('employees')
-    .select('*')
-    .eq('auth_user_id', user.id)
-    .single();
-  employee = emp;
-
-  document.getElementById('login-box').style.display = 'none';
-  document.getElementById('main-box').style.display = 'block';
-  document.getElementById('welcome').textContent = employee.name + ' さん';
+  employee = await requireEmployee();
+  if (!employee) return;
 
   if ([PRESIDENT_NAME, DIRECTOR_NAME, '山本 英嗣', '佐藤 秀樹'].includes(employee.name)) {
     document.getElementById('approval-section').style.display = 'block';
@@ -79,14 +47,12 @@ async function submitRequest() {
   document.getElementById('new-reason').value = '';
   document.getElementById('new-contact').value = '';
 
-  // 申請者自身が最初の承認者(部長など)と同一人物なら自動スキップ
   await autoSkipIfSelf(data);
 
   loadMyRequests();
   if (document.getElementById('approval-section').style.display === 'block') loadApprovalList();
 }
 
-// 承認者が申請者自身の場合、その段階を自動的に承認済みにして次へ進める
 async function autoSkipIfSelf(request) {
   let current = request;
   let guard = 0;
@@ -99,7 +65,7 @@ async function autoSkipIfSelf(request) {
 }
 
 function getApproverNameForStage(request) {
-  if (request.current_stage === 'manager') return null; // 部長は申請者の部署によるので呼び出し側で個別対応
+  if (request.current_stage === 'manager') return null;
   if (request.current_stage === 'director') return DIRECTOR_NAME;
   if (request.current_stage === 'president') return PRESIDENT_NAME;
   return null;
@@ -205,7 +171,6 @@ async function approveRequest(id) {
 
   let current = await advanceStage(request, employee.id, false);
 
-  // 次の承認者が申請者本人と同じ場合は自動スキップ
   let guard = 0;
   while (current.status === 'pending' && guard < 5) {
     guard++;
