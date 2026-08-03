@@ -344,3 +344,4 @@ async function deleteCurrentEvent() {
   closeModal();
   loadSchedule();
 }
+init();
