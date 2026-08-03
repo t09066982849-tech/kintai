@@ -27,6 +27,17 @@ async function logout() {
   location.reload();
 }
 
+// セッションが有効か確認する。切れていればログイン画面に戻す。
+async function ensureSession() {
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  if (!user) {
+    alert('ログインが切れました。もう一度ログインしてください。');
+    location.reload();
+    return false;
+  }
+  return true;
+}
+
 async function init() {
   const { data: { user } } = await supabaseClient.auth.getUser();
   if (!user) return;
@@ -204,6 +215,8 @@ function closeModal() {
 }
 
 async function submitCorrection() {
+  if (!(await ensureSession())) return;
+
   const inVal = document.getElementById('req-clock-in').value;
   const outVal = document.getElementById('req-clock-out').value;
   const siteId = document.getElementById('req-site-select').value;
@@ -235,6 +248,8 @@ function getPosition() {
 }
 
 async function clockIn() {
+  if (!(await ensureSession())) return;
+
   const pos = await getPosition();
   const siteId = document.getElementById('site-select').value;
   const today = new Date().toISOString().slice(0, 10);
@@ -253,6 +268,8 @@ async function clockIn() {
 }
 
 async function clockOut() {
+  if (!(await ensureSession())) return;
+
   const pos = await getPosition();
   const { data, error } = await supabaseClient.from('time_records').update({
     clock_out: new Date().toISOString(),
