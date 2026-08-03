@@ -40,7 +40,7 @@ async function ensureSession() {
 
 async function init() {
   const { data: { user } } = await supabaseClient.auth.getUser();
-  if (!user) return;
+  if (!user) { document.getElementById('login-box').style.display = 'block'; return; }
 
   const { data: emp } = await supabaseClient
     .from('employees')
