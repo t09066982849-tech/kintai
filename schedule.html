@@ -39,18 +39,19 @@
       <p><strong id="view-title"></strong></p>
       <p id="view-employee"></p>
       <p id="view-time"></p>
+      <button id="view-edit-btn" onclick="startEdit()">編集</button>
       <button id="view-delete-btn" style="background:#dc2626" onclick="deleteCurrentEvent()">削除</button>
       <button style="background:#9ca3af" onclick="closeModal()">閉じる</button>
     </div>
 
-    <div id="event-form">
+    <div id="event-form" style="display:none">
       <label>件名</label>
       <input type="text" id="new-title" placeholder="例:○○現場打合せ">
       <label>開始時刻(任意)</label>
       <input type="time" id="new-start">
       <label>終了時刻(任意)</label>
       <input type="time" id="new-end">
-      <button onclick="addEvent()">追加</button>
+      <button id="save-btn" onclick="addEvent()">追加</button>
       <button style="background:#9ca3af" onclick="closeModal()">キャンセル</button>
     </div>
   </div>
