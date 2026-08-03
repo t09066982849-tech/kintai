@@ -140,7 +140,7 @@ function renderWeek(week) {
     else { slotEnds[slot] = bar.colEnd; }
     bar.slot = slot;
   });
-  const slotCount = Math.max(1, slotEnds.length);
+  const slotCount = Math.max(3, slotEnds.length);
 
   let html = `<div class="cal-week" style="grid-template-rows: 18px repeat(${slotCount}, 18px);">`;
 
