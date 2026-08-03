@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>有給・出張申請</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<h2>有給・出張申請</h2>
+
+<div id="login-box">
+  <input id="email" type="email" placeholder="メールアドレス">
+  <input id="password" type="password" placeholder="パスワード">
+  <button onclick="login()">ログイン</button>
+  <p id="login-error" style="color:red"></p>
+</div>
+
+<div id="main-box" style="display:none">
+  <p id="welcome"></p>
+  <div class="nav-links">
+    <a href="index.html" class="nav-link">勤怠</a>
+    <a href="schedule.html" class="nav-link">スケジュール</a>
+    <a href="leave.html" class="nav-link active">申請</a>
+  </div>
+  <button style="background:#9ca3af" onclick="logout()">ログアウト</button>
+
+  <h3>新規申請</h3>
+  <label>種類</label>
+  <select id="new-type">
+    <option value="paid_leave">有給休暇</option>
+    <option value="business_trip">出張</option>
+  </select>
+  <label>開始日</label>
+  <input type="date" id="new-start">
+  <label>終了日</label>
+  <input type="date" id="new-end">
+  <label>日数</label>
+  <input type="number" id="new-days" step="0.5" min="0.5">
+  <label>事由</label>
+  <input type="text" id="new-reason" placeholder="例:私用の為">
+  <label>連絡先(携帯番号など、任意)</label>
+  <input type="text" id="new-contact" placeholder="例:090-0000-0000">
+  <button onclick="submitRequest()">申請する</button>
+
+  <h3>自分の申請一覧</h3>
+  <table>
+    <thead><tr><th>種類</th><th>期間</th><th>日数</th><th>状態</th></tr></thead>
+    <tbody id="my-requests-body"></tbody>
+  </table>
+</div>
+
+<script src="leave.js"></script>
+</body>
+</html>
