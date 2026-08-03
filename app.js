@@ -1,7 +1,3 @@
-const supabaseUrl = 'https://clymwlhxnkpwukuoblga.supabase.co';
-const supabaseKey = 'sb_publishable_npAygzNwa6ERwIRUpHabHA_Djm_BFNu';
-const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
-
 let employee = null;
 let todayRecord = null;
 let viewYear = new Date().getFullYear();
@@ -11,47 +7,9 @@ let modalRecord = null;
 let currentDateStr = null;
 let allSites = [];
 
-async function login() {
-  const email = document.getElementById('email').value;
-  const password = document.getElementById('password').value;
-  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-  if (error) {
-    document.getElementById('login-error').textContent = 'ログインできませんでした';
-    return;
-  }
-  init();
-}
-
-async function logout() {
-  await supabaseClient.auth.signOut();
-  location.reload();
-}
-
-// セッションが有効か確認する。切れていればログイン画面に戻す。
-async function ensureSession() {
-  const { data: { user } } = await supabaseClient.auth.getUser();
-  if (!user) {
-    alert('ログインが切れました。もう一度ログインしてください。');
-    location.reload();
-    return false;
-  }
-  return true;
-}
-
 async function init() {
-  const { data: { user } } = await supabaseClient.auth.getUser();
-  if (!user) { document.getElementById('login-box').style.display = 'block'; return; }
-
-  const { data: emp } = await supabaseClient
-    .from('employees')
-    .select('*')
-    .eq('auth_user_id', user.id)
-    .single();
-  employee = emp;
-
-  document.getElementById('login-box').style.display = 'none';
-  document.getElementById('main-box').style.display = 'block';
-  document.getElementById('welcome').textContent = employee.name + ' さん';
+  employee = await requireEmployee();
+  if (!employee) return;
 
   const { data: sites } = await supabaseClient.from('sites').select('*');
   allSites = sites;
