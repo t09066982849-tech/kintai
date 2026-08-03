@@ -64,7 +64,6 @@ async function loadSchedule() {
   const lastDay = new Date(viewYear, viewMonth, 0).getDate();
   const endDate = `${viewYear}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
 
-  // その月に「かかっている」予定を全部取得(開始日が月末より前、終了日(なければ開始日)が月初より後)
   const { data: items, error } = await supabaseClient
     .from('schedules')
     .select('*, employees(name)')
@@ -74,7 +73,6 @@ async function loadSchedule() {
 
   if (error) { console.error(error); return; }
 
-  // end_dateがnullで開始日が範囲外のものを除外
   scheduleItems = items.filter(i => {
     const itemEnd = i.end_date || i.date;
     return itemEnd >= startDate && i.date <= endDate;
@@ -93,33 +91,84 @@ function renderCalendar() {
   dowLabels.forEach((d, i) => {
     html += `<div class="cal-dow ${i === 0 ? 'cal-sun' : ''} ${i === 6 ? 'cal-sat' : ''}">${d}</div>`;
   });
-  html += '</div><div class="cal-grid">';
+  html += '</div>';
 
-  for (let i = 0; i < firstWeekday; i++) {
-    html += '<div class="cal-cell cal-empty"></div>';
-  }
-
+  const cells = [];
+  for (let i = 0; i < firstWeekday; i++) cells.push(null);
   for (let day = 1; day <= lastDay; day++) {
-    const dateStr = `${viewYear}-${String(viewMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-    const dayItems = scheduleItems.filter(i => {
-      const itemEnd = i.end_date || i.date;
-      return i.date <= dateStr && itemEnd >= dateStr;
-    });
-    const weekday = new Date(viewYear, viewMonth - 1, day).getDay();
-
-    let eventsHtml = dayItems.map(i => {
-      const label = i.employees ? i.employees.name : '';
-      return `<div class="cal-event cal-type-${i.type}" onclick="openEventView(event, ${i.id})" title="${i.title || ''}">${label}: ${i.title || typeLabel[i.type]}</div>`;
-    }).join('');
-
-    html += `<div class="cal-cell ${weekday === 0 ? 'cal-sun' : ''} ${weekday === 6 ? 'cal-sat' : ''}" onclick="openAddModal('${dateStr}')">
-      <div class="cal-daynum">${day}</div>
-      ${eventsHtml}
-    </div>`;
+    cells.push(`${viewYear}-${String(viewMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`);
   }
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  for (let i = 0; i < cells.length; i += 7) {
+    html += renderWeek(cells.slice(i, i + 7));
+  }
+
+  cal.innerHTML = html;
+}
+
+function renderWeek(week) {
+  const weekDates = week.filter(d => d);
+  if (weekDates.length === 0) return '';
+  const weekStart = weekDates[0];
+  const weekEnd = weekDates[weekDates.length - 1];
+
+  const weekEvents = scheduleItems.filter(i => {
+    const itemEnd = i.end_date || i.date;
+    return itemEnd >= weekStart && i.date <= weekEnd;
+  });
+
+  const bars = weekEvents.map(i => {
+    const itemEnd = i.end_date || i.date;
+    let colStart = week.findIndex(d => d === i.date);
+    let colEnd = week.findIndex(d => d === itemEnd);
+    if (colStart === -1) colStart = 0;
+    if (colEnd === -1) colEnd = 6;
+    return {
+      item: i,
+      colStart,
+      colEnd,
+      continuesFromPrev: i.date < weekStart,
+      continuesToNext: itemEnd > weekEnd
+    };
+  }).sort((a, b) => a.colStart - b.colStart || (b.colEnd - b.colStart) - (a.colEnd - a.colStart));
+
+  const slotEnds = [];
+  bars.forEach(bar => {
+    let slot = slotEnds.findIndex(end => end < bar.colStart);
+    if (slot === -1) { slot = slotEnds.length; slotEnds.push(bar.colEnd); }
+    else { slotEnds[slot] = bar.colEnd; }
+    bar.slot = slot;
+  });
+  const slotCount = Math.max(1, slotEnds.length);
+
+  let html = `<div class="cal-week" style="grid-template-rows: 18px repeat(${slotCount}, 18px);">`;
+
+  week.forEach((dateStr, col) => {
+    if (!dateStr) {
+      html += `<div class="cal-daycell cal-empty" style="grid-column:${col+1}; grid-row:1/-1"></div>`;
+      return;
+    }
+    const day = Number(dateStr.slice(8, 10));
+    const weekday = new Date(viewYear, viewMonth - 1, day).getDay();
+    html += `<div class="cal-daycell ${weekday===0?'cal-sun':''} ${weekday===6?'cal-sat':''}" style="grid-column:${col+1}; grid-row:1/-1" onclick="openAddModal('${dateStr}')">
+      <div class="cal-daynum">${day}</div>
+    </div>`;
+  });
+
+  bars.forEach(bar => {
+    const label = bar.item.employees ? bar.item.employees.name : '';
+    const cls = [
+      'cal-event-bar',
+      `cal-type-${bar.item.type}`,
+      bar.continuesFromPrev ? 'cal-bar-noleft' : '',
+      bar.continuesToNext ? 'cal-bar-noright' : ''
+    ].join(' ');
+    html += `<div class="${cls}" style="grid-column:${bar.colStart+1} / ${bar.colEnd+2}; grid-row:${bar.slot+2};" onclick="openEventView(event, ${bar.item.id})" title="${bar.item.title || ''}">${label}: ${bar.item.title || typeLabel[bar.item.type]}</div>`;
+  });
 
   html += '</div>';
-  cal.innerHTML = html;
+  return html;
 }
 
 function toggleAllday() {
