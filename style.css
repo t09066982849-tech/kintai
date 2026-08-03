@@ -61,3 +61,16 @@ th { background: #f3f4f6; }
 .cal-event-bar.cal-bar-noright { border-top-right-radius: 0; border-bottom-right-radius: 0; margin-right: -2px; }
 .cal-type-paid_leave { background: #fef3c7; color: #92400e; }
 .cal-type-business_trip { background: #dcfce7; color: #166534; }
+.nav-links { display: flex; gap: 8px; margin: 10px 0; }
+.nav-link {
+  padding: 8px 16px;
+  border-radius: 6px;
+  background: #f3f4f6;
+  color: #374151;
+  text-decoration: none;
+  font-size: 14px;
+}
+.nav-link.active {
+  background: #2563eb;
+  color: white;
+}
