@@ -310,3 +310,37 @@ async function addEvent() {
 
   const { data, error } = await supabaseClient.from('schedules').insert({
     employee_id: employee.id,
+    date: selectedDate,
+    type: 'event',
+    ...payload
+  }).select().single();
+
+  if (error) { alert('エラー: ' + error.message); return; }
+
+  await syncMembers(data.id);
+  closeModal();
+  loadSchedule();
+}
+
+async function updateEvent() {
+  const payload = buildPayload();
+  if (!payload) return;
+  if (!selectedEvent) return;
+
+  const { error } = await supabaseClient.from('schedules').update(payload).eq('id', selectedEvent.id);
+
+  if (error) { alert('エラー: ' + error.message); return; }
+
+  await syncMembers(selectedEvent.id);
+  closeModal();
+  loadSchedule();
+}
+
+async function deleteCurrentEvent() {
+  if (!selectedEvent) return;
+  if (!confirm('削除しますか？')) return;
+  const { error } = await supabaseClient.from('schedules').delete().eq('id', selectedEvent.id);
+  if (error) { alert('エラー: ' + error.message); return; }
+  closeModal();
+  loadSchedule();
+}
