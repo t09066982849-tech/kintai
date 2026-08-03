@@ -38,6 +38,7 @@
     <div id="event-view" style="display:none">
       <p><strong id="view-title"></strong></p>
       <p id="view-employee"></p>
+      <p id="view-period"></p>
       <p id="view-time"></p>
       <button id="view-edit-btn" onclick="startEdit()">編集</button>
       <button id="view-delete-btn" style="background:#dc2626" onclick="deleteCurrentEvent()">削除</button>
@@ -47,10 +48,22 @@
     <div id="event-form" style="display:none">
       <label>件名</label>
       <input type="text" id="new-title" placeholder="例:○○現場打合せ">
-      <label>開始時刻(任意)</label>
-      <input type="time" id="new-start">
-      <label>終了時刻(任意)</label>
-      <input type="time" id="new-end">
+
+      <label>終了日(複数日にまたがる場合のみ)</label>
+      <input type="date" id="new-end-date">
+
+      <label style="display:flex; align-items:center; gap:8px; width:auto;">
+        <input type="checkbox" id="new-allday" style="width:auto; margin:0;" checked onchange="toggleAllday()">
+        終日
+      </label>
+
+      <div id="time-fields" style="display:none">
+        <label>開始時刻</label>
+        <input type="time" id="new-start">
+        <label>終了時刻</label>
+        <input type="time" id="new-end">
+      </div>
+
       <button id="save-btn" onclick="addEvent()">追加</button>
       <button style="background:#9ca3af" onclick="closeModal()">キャンセル</button>
     </div>
