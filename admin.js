@@ -1,45 +1,16 @@
-const supabaseUrl = 'https://clymwlhxnkpwukuoblga.supabase.co';
-const supabaseKey = 'sb_publishable_npAygzNwa6ERwIRUpHabHA_Djm_BFNu';
-const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
-
 let employee = null;
 
-async function login() {
-  const email = document.getElementById('email').value;
-  const password = document.getElementById('password').value;
-  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-  if (error) {
-    document.getElementById('login-error').textContent = 'ログインできませんでした';
-    return;
-  }
-  init();
-}
-
-async function logout() {
-  await supabaseClient.auth.signOut();
-  location.reload();
-}
-
 async function init() {
-  const { data: { user } } = await supabaseClient.auth.getUser();
-  if (!user) { document.getElementById('login-box').style.display = 'block'; return; }
+  employee = await requireEmployee();
+  if (!employee) return;
 
-  const { data: emp } = await supabaseClient
-    .from('employees')
-    .select('*')
-    .eq('auth_user_id', user.id)
-    .single();
-
-  if (!emp || !emp.is_admin) {
+  if (!employee.is_admin) {
+    document.getElementById('main-box').style.display = 'none';
+    document.getElementById('login-box').style.display = 'block';
     document.getElementById('login-error').textContent = '管理者権限がありません';
     await supabaseClient.auth.signOut();
     return;
   }
-  employee = emp;
-
-  document.getElementById('login-box').style.display = 'none';
-  document.getElementById('main-box').style.display = 'block';
-  document.getElementById('welcome').textContent = employee.name + ' さん(管理者)';
 
   const now = new Date();
   document.getElementById('export-month').value = now.toISOString().slice(0, 7);
@@ -215,3 +186,5 @@ async function exportExcel() {
 
   XLSX.writeFile(wb, `勤怠データ_${monthVal}.xlsx`);
 }
+
+init();
