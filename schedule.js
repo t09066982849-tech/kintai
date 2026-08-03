@@ -8,6 +8,7 @@ let viewMonth = new Date().getMonth() + 1;
 let scheduleItems = [];
 let selectedDate = null;
 let selectedEvent = null;
+let isEditing = false;
 
 const typeLabel = {
   paid_leave: '有給',
@@ -79,7 +80,7 @@ async function loadSchedule() {
 function renderCalendar() {
   const cal = document.getElementById('calendar');
   const lastDay = new Date(viewYear, viewMonth, 0).getDate();
-  const firstWeekday = new Date(viewYear, viewMonth - 1, 1).getDay(); // 0=日
+  const firstWeekday = new Date(viewYear, viewMonth - 1, 1).getDay();
   const dowLabels = ['日', '月', '火', '水', '木', '金', '土'];
 
   let html = '<div class="cal-grid cal-header">';
@@ -115,6 +116,7 @@ function renderCalendar() {
 function openAddModal(dateStr) {
   selectedDate = dateStr;
   selectedEvent = null;
+  isEditing = false;
   document.getElementById('modal-title').textContent = '予定を追加';
   document.getElementById('modal-date-label').textContent = dateStr;
   document.getElementById('event-view').style.display = 'none';
@@ -122,6 +124,8 @@ function openAddModal(dateStr) {
   document.getElementById('new-title').value = '';
   document.getElementById('new-start').value = '';
   document.getElementById('new-end').value = '';
+  document.getElementById('save-btn').textContent = '追加';
+  document.getElementById('save-btn').onclick = addEvent;
   document.getElementById('modal-bg').style.display = 'flex';
 }
 
@@ -131,6 +135,7 @@ function openEventView(evt, id) {
   if (!item) return;
   selectedEvent = item;
   selectedDate = item.date;
+  isEditing = false;
 
   document.getElementById('modal-title').textContent = '予定の詳細';
   document.getElementById('modal-date-label').textContent = item.date;
@@ -142,10 +147,26 @@ function openEventView(evt, id) {
   const timeStr = (item.start_time && item.end_time) ? `${item.start_time.slice(0,5)}〜${item.end_time.slice(0,5)}` : '';
   document.getElementById('view-time').textContent = timeStr;
 
-  const canDelete = employee && (item.employee_id === employee.id || employee.is_admin);
-  document.getElementById('view-delete-btn').style.display = canDelete ? 'block' : 'none';
+  const canEdit = employee && (item.employee_id === employee.id || employee.is_admin);
+  document.getElementById('view-edit-btn').style.display = canEdit ? 'block' : 'none';
+  document.getElementById('view-delete-btn').style.display = canEdit ? 'block' : 'none';
 
   document.getElementById('modal-bg').style.display = 'flex';
+}
+
+function startEdit() {
+  if (!selectedEvent) return;
+  isEditing = true;
+
+  document.getElementById('modal-title').textContent = '予定を編集';
+  document.getElementById('event-view').style.display = 'none';
+  document.getElementById('event-form').style.display = 'block';
+
+  document.getElementById('new-title').value = selectedEvent.title || '';
+  document.getElementById('new-start').value = selectedEvent.start_time ? selectedEvent.start_time.slice(0,5) : '';
+  document.getElementById('new-end').value = selectedEvent.end_time ? selectedEvent.end_time.slice(0,5) : '';
+  document.getElementById('save-btn').textContent = '保存';
+  document.getElementById('save-btn').onclick = updateEvent;
 }
 
 function closeModal() {
@@ -167,6 +188,25 @@ async function addEvent() {
     start_time: start || null,
     end_time: end || null
   });
+
+  if (error) { alert('エラー: ' + error.message); return; }
+  closeModal();
+  loadSchedule();
+}
+
+async function updateEvent() {
+  const title = document.getElementById('new-title').value.trim();
+  const start = document.getElementById('new-start').value;
+  const end = document.getElementById('new-end').value;
+
+  if (!title) { alert('件名を入力してください'); return; }
+  if (!selectedEvent) return;
+
+  const { error } = await supabaseClient.from('schedules').update({
+    title: title,
+    start_time: start || null,
+    end_time: end || null
+  }).eq('id', selectedEvent.id);
 
   if (error) { alert('エラー: ' + error.message); return; }
   closeModal();
