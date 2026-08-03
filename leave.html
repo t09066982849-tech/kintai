@@ -44,6 +44,14 @@
   <input type="text" id="new-contact" placeholder="例:090-0000-0000">
   <button onclick="submitRequest()">申請する</button>
 
+  <div id="approval-section" style="display:none">
+    <h3>承認待ちの申請</h3>
+    <table>
+      <thead><tr><th>申請者</th><th>種類</th><th>期間</th><th>日数</th><th>事由</th><th>操作</th></tr></thead>
+      <tbody id="approval-body"></tbody>
+    </table>
+  </div>
+
   <h3>自分の申請一覧</h3>
   <table>
     <thead><tr><th>種類</th><th>期間</th><th>日数</th><th>状態</th></tr></thead>
