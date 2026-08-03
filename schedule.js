@@ -8,7 +8,6 @@ let viewMonth = new Date().getMonth() + 1;
 let scheduleItems = [];
 let selectedDate = null;
 let selectedEvent = null;
-let isEditing = false;
 
 const typeLabel = {
   paid_leave: '有給',
@@ -65,15 +64,22 @@ async function loadSchedule() {
   const lastDay = new Date(viewYear, viewMonth, 0).getDate();
   const endDate = `${viewYear}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
 
+  // その月に「かかっている」予定を全部取得(開始日が月末より前、終了日(なければ開始日)が月初より後)
   const { data: items, error } = await supabaseClient
     .from('schedules')
     .select('*, employees(name)')
-    .gte('date', startDate)
     .lte('date', endDate)
+    .or(`end_date.gte.${startDate},end_date.is.null`)
     .order('date', { ascending: true });
 
   if (error) { console.error(error); return; }
-  scheduleItems = items;
+
+  // end_dateがnullで開始日が範囲外のものを除外
+  scheduleItems = items.filter(i => {
+    const itemEnd = i.end_date || i.date;
+    return itemEnd >= startDate && i.date <= endDate;
+  });
+
   renderCalendar();
 }
 
@@ -95,7 +101,10 @@ function renderCalendar() {
 
   for (let day = 1; day <= lastDay; day++) {
     const dateStr = `${viewYear}-${String(viewMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-    const dayItems = scheduleItems.filter(i => i.date === dateStr);
+    const dayItems = scheduleItems.filter(i => {
+      const itemEnd = i.end_date || i.date;
+      return i.date <= dateStr && itemEnd >= dateStr;
+    });
     const weekday = new Date(viewYear, viewMonth - 1, day).getDay();
 
     let eventsHtml = dayItems.map(i => {
@@ -113,15 +122,22 @@ function renderCalendar() {
   cal.innerHTML = html;
 }
 
+function toggleAllday() {
+  const isAllday = document.getElementById('new-allday').checked;
+  document.getElementById('time-fields').style.display = isAllday ? 'none' : 'block';
+}
+
 function openAddModal(dateStr) {
   selectedDate = dateStr;
   selectedEvent = null;
-  isEditing = false;
   document.getElementById('modal-title').textContent = '予定を追加';
   document.getElementById('modal-date-label').textContent = dateStr;
   document.getElementById('event-view').style.display = 'none';
   document.getElementById('event-form').style.display = 'block';
   document.getElementById('new-title').value = '';
+  document.getElementById('new-end-date').value = '';
+  document.getElementById('new-allday').checked = true;
+  document.getElementById('time-fields').style.display = 'none';
   document.getElementById('new-start').value = '';
   document.getElementById('new-end').value = '';
   document.getElementById('save-btn').textContent = '追加';
@@ -135,7 +151,6 @@ function openEventView(evt, id) {
   if (!item) return;
   selectedEvent = item;
   selectedDate = item.date;
-  isEditing = false;
 
   document.getElementById('modal-title').textContent = '予定の詳細';
   document.getElementById('modal-date-label').textContent = item.date;
@@ -144,7 +159,11 @@ function openEventView(evt, id) {
 
   document.getElementById('view-title').textContent = item.title || typeLabel[item.type];
   document.getElementById('view-employee').textContent = '登録者: ' + (item.employees ? item.employees.name : '-');
-  const timeStr = (item.start_time && item.end_time) ? `${item.start_time.slice(0,5)}〜${item.end_time.slice(0,5)}` : '';
+
+  const periodStr = item.end_date && item.end_date !== item.date ? `期間: ${item.date} 〜 ${item.end_date}` : '';
+  document.getElementById('view-period').textContent = periodStr;
+
+  const timeStr = (item.start_time && item.end_time) ? `時刻: ${item.start_time.slice(0,5)}〜${item.end_time.slice(0,5)}` : '終日';
   document.getElementById('view-time').textContent = timeStr;
 
   const canEdit = employee && (item.employee_id === employee.id || employee.is_admin);
@@ -156,15 +175,20 @@ function openEventView(evt, id) {
 
 function startEdit() {
   if (!selectedEvent) return;
-  isEditing = true;
 
   document.getElementById('modal-title').textContent = '予定を編集';
   document.getElementById('event-view').style.display = 'none';
   document.getElementById('event-form').style.display = 'block';
 
   document.getElementById('new-title').value = selectedEvent.title || '';
+  document.getElementById('new-end-date').value = (selectedEvent.end_date && selectedEvent.end_date !== selectedEvent.date) ? selectedEvent.end_date : '';
+
+  const isAllday = !(selectedEvent.start_time && selectedEvent.end_time);
+  document.getElementById('new-allday').checked = isAllday;
+  document.getElementById('time-fields').style.display = isAllday ? 'none' : 'block';
   document.getElementById('new-start').value = selectedEvent.start_time ? selectedEvent.start_time.slice(0,5) : '';
   document.getElementById('new-end').value = selectedEvent.end_time ? selectedEvent.end_time.slice(0,5) : '';
+
   document.getElementById('save-btn').textContent = '保存';
   document.getElementById('save-btn').onclick = updateEvent;
 }
@@ -173,20 +197,32 @@ function closeModal() {
   document.getElementById('modal-bg').style.display = 'none';
 }
 
-async function addEvent() {
+function buildPayload() {
   const title = document.getElementById('new-title').value.trim();
-  const start = document.getElementById('new-start').value;
-  const end = document.getElementById('new-end').value;
+  const endDateVal = document.getElementById('new-end-date').value;
+  const isAllday = document.getElementById('new-allday').checked;
+  const start = isAllday ? null : document.getElementById('new-start').value;
+  const end = isAllday ? null : document.getElementById('new-end').value;
 
-  if (!title) { alert('件名を入力してください'); return; }
+  if (!title) { alert('件名を入力してください'); return null; }
+
+  return {
+    title: title,
+    end_date: endDateVal || null,
+    start_time: start || null,
+    end_time: end || null
+  };
+}
+
+async function addEvent() {
+  const payload = buildPayload();
+  if (!payload) return;
 
   const { error } = await supabaseClient.from('schedules').insert({
     employee_id: employee.id,
     date: selectedDate,
     type: 'event',
-    title: title,
-    start_time: start || null,
-    end_time: end || null
+    ...payload
   });
 
   if (error) { alert('エラー: ' + error.message); return; }
@@ -195,18 +231,11 @@ async function addEvent() {
 }
 
 async function updateEvent() {
-  const title = document.getElementById('new-title').value.trim();
-  const start = document.getElementById('new-start').value;
-  const end = document.getElementById('new-end').value;
-
-  if (!title) { alert('件名を入力してください'); return; }
+  const payload = buildPayload();
+  if (!payload) return;
   if (!selectedEvent) return;
 
-  const { error } = await supabaseClient.from('schedules').update({
-    title: title,
-    start_time: start || null,
-    end_time: end || null
-  }).eq('id', selectedEvent.id);
+  const { error } = await supabaseClient.from('schedules').update(payload).eq('id', selectedEvent.id);
 
   if (error) { alert('エラー: ' + error.message); return; }
   closeModal();
