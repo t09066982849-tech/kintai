@@ -38,6 +38,7 @@
     <div id="event-view" style="display:none">
       <p><strong id="view-title"></strong></p>
       <p id="view-employee"></p>
+      <p id="view-members"></p>
       <p id="view-period"></p>
       <p id="view-time"></p>
       <button id="view-edit-btn" onclick="startEdit()">編集</button>
@@ -63,6 +64,9 @@
         <label>終了時刻</label>
         <input type="time" id="new-end">
       </div>
+
+      <label>参加メンバー</label>
+      <div id="member-checkboxes" style="max-height:150px; overflow-y:auto; border:1px solid #ddd; border-radius:6px; padding:8px;"></div>
 
       <button id="save-btn" onclick="addEvent()">追加</button>
       <button style="background:#9ca3af" onclick="closeModal()">キャンセル</button>
