@@ -8,6 +8,7 @@ let viewMonth = new Date().getMonth() + 1;
 let scheduleItems = [];
 let selectedDate = null;
 let selectedEvent = null;
+let allEmployees = [];
 
 const typeLabel = {
   paid_leave: '有給',
@@ -46,6 +47,9 @@ async function init() {
   document.getElementById('main-box').style.display = 'block';
   document.getElementById('welcome').textContent = employee.name + ' さん';
 
+  const { data: emps } = await supabaseClient.from('employees').select('id, name').order('id');
+  allEmployees = emps || [];
+
   loadSchedule();
 }
 
@@ -66,7 +70,7 @@ async function loadSchedule() {
 
   const { data: items, error } = await supabaseClient
     .from('schedules')
-    .select('*, employees(name)')
+    .select('*, employees(name), schedule_members(employee_id, employees(name))')
     .lte('date', endDate)
     .or(`end_date.gte.${startDate},end_date.is.null`)
     .order('date', { ascending: true });
@@ -158,13 +162,15 @@ function renderWeek(week) {
 
   bars.forEach(bar => {
     const label = bar.item.employees ? bar.item.employees.name : '';
+    const memberCount = bar.item.schedule_members ? bar.item.schedule_members.length : 0;
+    const memberSuffix = memberCount > 0 ? ` +${memberCount}` : '';
     const cls = [
       'cal-event-bar',
       `cal-type-${bar.item.type}`,
       bar.continuesFromPrev ? 'cal-bar-noleft' : '',
       bar.continuesToNext ? 'cal-bar-noright' : ''
     ].join(' ');
-    html += `<div class="${cls}" style="grid-column:${bar.colStart+1} / ${bar.colEnd+2}; grid-row:${bar.slot+2};" onclick="openEventView(event, ${bar.item.id})" title="${bar.item.title || ''}">${label}: ${bar.item.title || typeLabel[bar.item.type]}</div>`;
+    html += `<div class="${cls}" style="grid-column:${bar.colStart+1} / ${bar.colEnd+2}; grid-row:${bar.slot+2};" onclick="openEventView(event, ${bar.item.id})" title="${bar.item.title || ''}">${label}: ${bar.item.title || typeLabel[bar.item.type]}${memberSuffix}</div>`;
   });
 
   html += '</div>';
@@ -174,6 +180,23 @@ function renderWeek(week) {
 function toggleAllday() {
   const isAllday = document.getElementById('new-allday').checked;
   document.getElementById('time-fields').style.display = isAllday ? 'none' : 'block';
+}
+
+function renderMemberCheckboxes(checkedIds) {
+  const container = document.getElementById('member-checkboxes');
+  container.innerHTML = allEmployees
+    .filter(e => e.id !== employee.id)
+    .map(e => `
+      <label style="display:flex; align-items:center; gap:8px; width:auto; margin:2px 0;">
+        <input type="checkbox" value="${e.id}" style="width:auto; margin:0;" ${checkedIds.includes(e.id) ? 'checked' : ''}>
+        ${e.name}
+      </label>
+    `).join('');
+}
+
+function getSelectedMemberIds() {
+  const checkboxes = document.querySelectorAll('#member-checkboxes input[type=checkbox]:checked');
+  return Array.from(checkboxes).map(cb => Number(cb.value));
 }
 
 function openAddModal(dateStr) {
@@ -189,6 +212,7 @@ function openAddModal(dateStr) {
   document.getElementById('time-fields').style.display = 'none';
   document.getElementById('new-start').value = '';
   document.getElementById('new-end').value = '';
+  renderMemberCheckboxes([]);
   document.getElementById('save-btn').textContent = '追加';
   document.getElementById('save-btn').onclick = addEvent;
   document.getElementById('modal-bg').style.display = 'flex';
@@ -208,6 +232,9 @@ function openEventView(evt, id) {
 
   document.getElementById('view-title').textContent = item.title || typeLabel[item.type];
   document.getElementById('view-employee').textContent = '登録者: ' + (item.employees ? item.employees.name : '-');
+
+  const memberNames = (item.schedule_members || []).map(m => m.employees ? m.employees.name : '').filter(Boolean);
+  document.getElementById('view-members').textContent = memberNames.length > 0 ? 'メンバー: ' + memberNames.join('、') : '';
 
   const periodStr = item.end_date && item.end_date !== item.date ? `期間: ${item.date} 〜 ${item.end_date}` : '';
   document.getElementById('view-period').textContent = periodStr;
@@ -238,6 +265,9 @@ function startEdit() {
   document.getElementById('new-start').value = selectedEvent.start_time ? selectedEvent.start_time.slice(0,5) : '';
   document.getElementById('new-end').value = selectedEvent.end_time ? selectedEvent.end_time.slice(0,5) : '';
 
+  const currentMemberIds = (selectedEvent.schedule_members || []).map(m => m.employee_id);
+  renderMemberCheckboxes(currentMemberIds);
+
   document.getElementById('save-btn').textContent = '保存';
   document.getElementById('save-btn').onclick = updateEvent;
 }
@@ -263,39 +293,20 @@ function buildPayload() {
   };
 }
 
+async function syncMembers(scheduleId) {
+  const memberIds = getSelectedMemberIds();
+
+  await supabaseClient.from('schedule_members').delete().eq('schedule_id', scheduleId);
+
+  if (memberIds.length > 0) {
+    const rows = memberIds.map(id => ({ schedule_id: scheduleId, employee_id: id }));
+    await supabaseClient.from('schedule_members').insert(rows);
+  }
+}
+
 async function addEvent() {
   const payload = buildPayload();
   if (!payload) return;
 
-  const { error } = await supabaseClient.from('schedules').insert({
+  const { data, error } = await supabaseClient.from('schedules').insert({
     employee_id: employee.id,
-    date: selectedDate,
-    type: 'event',
-    ...payload
-  });
-
-  if (error) { alert('エラー: ' + error.message); return; }
-  closeModal();
-  loadSchedule();
-}
-
-async function updateEvent() {
-  const payload = buildPayload();
-  if (!payload) return;
-  if (!selectedEvent) return;
-
-  const { error } = await supabaseClient.from('schedules').update(payload).eq('id', selectedEvent.id);
-
-  if (error) { alert('エラー: ' + error.message); return; }
-  closeModal();
-  loadSchedule();
-}
-
-async function deleteCurrentEvent() {
-  if (!selectedEvent) return;
-  if (!confirm('削除しますか？')) return;
-  const { error } = await supabaseClient.from('schedules').delete().eq('id', selectedEvent.id);
-  if (error) { alert('エラー: ' + error.message); return; }
-  closeModal();
-  loadSchedule();
-}
