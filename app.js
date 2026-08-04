@@ -28,7 +28,7 @@ async function init() {
     select.value = lastRecord.site_id;
   }
 
-  currentDateStr = new Date().toISOString().slice(0, 10);
+  currentDateStr = getJSTDateStr();
   const { data: record } = await supabaseClient
     .from('time_records')
     .select('*')
@@ -48,7 +48,7 @@ async function init() {
 
 async function refreshTodayStatus() {
   if (!employee) return;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getJSTDateStr();
   if (today === currentDateStr) return;
 
   currentDateStr = today;
@@ -214,7 +214,7 @@ async function clockIn() {
 
   const pos = await getPosition();
   const siteId = document.getElementById('site-select').value;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getJSTDateStr();
   const { data, error } = await supabaseClient.from('time_records').insert({
     employee_id: employee.id,
     date: today,
