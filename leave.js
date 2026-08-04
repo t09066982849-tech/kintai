@@ -256,6 +256,21 @@ async function loadMyRequests() {
   tbody.innerHTML = items.map(i => {
     let statusText;
     if (i.status === 'rejected') statusText = '却下';
+    else if (i.status === 'approved') statusText = `承認完了 <a href="document.html?id=${i.id}" target="_blank">書類を見る</a>`;
+    else statusText = stageLabel[i.current_stage] || i.current_stage;
+
+    return `<tr>
+      <td>${typeLabel[i.type] || i.type}</td>
+      <td>${i.start_date} 〜 ${i.end_date}</td>
+      <td>${i.days}</td>
+      <td>${statusText}</td>
+    </tr>`;
+  }).join('');
+}
+
+  tbody.innerHTML = items.map(i => {
+    let statusText;
+    if (i.status === 'rejected') statusText = '却下';
     else if (i.status === 'approved') statusText = '承認完了';
     else statusText = stageLabel[i.current_stage] || i.current_stage;
 
