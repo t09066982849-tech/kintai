@@ -67,6 +67,7 @@ function updateButton() {
   const btn = document.getElementById('action-btn');
   const status = document.getElementById('status');
   const siteSelect = document.getElementById('site-select');
+  btn.disabled = false;
   btn.style.display = 'block';
   if (!todayRecord) {
     siteSelect.disabled = false;
@@ -208,6 +209,9 @@ function getPosition() {
 async function clockIn() {
   if (!(await ensureSession())) return;
 
+  const btn = document.getElementById('action-btn');
+  btn.disabled = true;
+
   const pos = await getPosition();
   const siteId = document.getElementById('site-select').value;
   const today = new Date().toISOString().slice(0, 10);
@@ -219,7 +223,7 @@ async function clockIn() {
     clock_in_lat: pos ? pos.lat : null,
     clock_in_lng: pos ? pos.lng : null
   }).select().single();
-  if (error) { alert('エラー: ' + error.message); return; }
+  if (error) { alert('エラー: ' + error.message); btn.disabled = false; return; }
   todayRecord = data;
   updateButton();
   loadHistory();
@@ -228,13 +232,16 @@ async function clockIn() {
 async function clockOut() {
   if (!(await ensureSession())) return;
 
+  const btn = document.getElementById('action-btn');
+  btn.disabled = true;
+
   const pos = await getPosition();
   const { data, error } = await supabaseClient.from('time_records').update({
     clock_out: new Date().toISOString(),
     clock_out_lat: pos ? pos.lat : null,
     clock_out_lng: pos ? pos.lng : null
   }).eq('id', todayRecord.id).select().single();
-  if (error) { alert('エラー: ' + error.message); return; }
+  if (error) { alert('エラー: ' + error.message); btn.disabled = false; return; }
   todayRecord = data;
   updateButton();
   loadHistory();
