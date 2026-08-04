@@ -17,6 +17,7 @@ async function init() {
   }
 
   loadMyRequests();
+  toggleTypeFields();
 }
 
 function toggleTypeFields() {
