@@ -24,6 +24,7 @@ function toggleTypeFields() {
   const isTrip = type === 'business_trip';
   document.getElementById('trip-fields').style.display = isTrip ? 'block' : 'none';
   document.getElementById('reason-label').textContent = isTrip ? '用件' : '事由';
+  document.getElementById('new-reason').placeholder = isTrip ? '例:○○現場視察の為' : '例:私用の為';
 }
 
 async function submitRequest() {
