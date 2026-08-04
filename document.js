@@ -1,8 +1,14 @@
 const deptLabel = { civil: '土木部', accounting: '経理部' };
 const approverLabel = { manager: '部長', director: '常務', president: '社長' };
 
-function seal(name) {
-  return name ? `<div class="seal">${name}</div>` : '';
+function sealName(fullName) {
+  if (!fullName) return '';
+  return fullName.startsWith('伊豆倉') ? fullName : fullName.split(' ')[0].split('　')[0];
+}
+
+function seal(fullName) {
+  if (!fullName) return '';
+  return `<div class="seal">${sealName(fullName)}</div>`;
 }
 
 async function loadDocument() {
@@ -26,7 +32,6 @@ async function loadDocument() {
     return;
   }
 
-  // 承認者の名前をまとめて取得
   const approverIds = [req.manager_approved_by, req.director_approved_by, req.president_approved_by].filter(Boolean);
   const { data: approvers } = await supabaseClient.from('employees').select('id, name').in('id', approverIds);
   const nameById = {};
@@ -76,7 +81,7 @@ function renderBusinessTrip(req, nameById, deptText, managerLabel) {
     ${approvalTable(req, nameById, managerLabel)}
     <table>
       <tr><th>所属</th><td>${deptText}</td></tr>
-      <tr><th>氏名</th><td>${req.employees.name} ${seal(req.employees.name)}</td></tr>
+      <tr><th>氏名</th><td>${req.employees.name}</td></tr>
       <tr><th>期間</th><td>${req.start_date} 〜 ${req.end_date}(${req.days}日間)</td></tr>
       <tr><th>行き先</th><td>${req.destination || ''}</td></tr>
       <tr><th>用件</th><td>${req.reason || ''}</td></tr>
