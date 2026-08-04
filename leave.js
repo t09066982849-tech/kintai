@@ -19,6 +19,13 @@ async function init() {
   loadMyRequests();
 }
 
+function toggleTypeFields() {
+  const type = document.getElementById('new-type').value;
+  const isTrip = type === 'business_trip';
+  document.getElementById('trip-fields').style.display = isTrip ? 'block' : 'none';
+  document.getElementById('reason-label').textContent = isTrip ? '用件' : '事由';
+}
+
 async function submitRequest() {
   const type = document.getElementById('new-type').value;
   const start = document.getElementById('new-start').value;
@@ -29,7 +36,7 @@ async function submitRequest() {
 
   if (!start || !end || !days || !reason) { alert('必須項目を入力してください'); return; }
 
-  const { data, error } = await supabaseClient.from('leave_requests').insert({
+  const payload = {
     employee_id: employee.id,
     type: type,
     start_date: start,
@@ -37,7 +44,21 @@ async function submitRequest() {
     days: Number(days),
     reason: reason,
     contact_phone: contact || null
-  }).select().single();
+  };
+
+  if (type === 'business_trip') {
+    const destination = document.getElementById('new-destination').value.trim();
+    const transportation = document.getElementById('new-transportation').value.trim();
+    const hotelNeeded = document.getElementById('new-hotel').checked;
+
+    if (!destination) { alert('行き先を入力してください'); return; }
+
+    payload.destination = destination;
+    payload.transportation = transportation || null;
+    payload.hotel_needed = hotelNeeded;
+  }
+
+  const { data, error } = await supabaseClient.from('leave_requests').insert(payload).select().single();
 
   if (error) { alert('エラー: ' + error.message); return; }
 
@@ -46,6 +67,9 @@ async function submitRequest() {
   document.getElementById('new-days').value = '';
   document.getElementById('new-reason').value = '';
   document.getElementById('new-contact').value = '';
+  document.getElementById('new-destination').value = '';
+  document.getElementById('new-transportation').value = '';
+  document.getElementById('new-hotel').checked = false;
 
   await autoSkipIfSelf(data);
 
@@ -88,19 +112,30 @@ async function loadApprovalList() {
     return;
   }
 
-  tbody.innerHTML = myApprovals.map(i => `
+  tbody.innerHTML = myApprovals.map(i => {
+    let detail = i.reason || '';
+    if (i.type === 'business_trip') {
+      const parts = [];
+      if (i.destination) parts.push('行き先:' + i.destination);
+      if (i.transportation) parts.push('交通:' + i.transportation);
+      parts.push('ホテル:' + (i.hotel_needed ? '要' : '不要'));
+      parts.push('用件:' + (i.reason || ''));
+      detail = parts.join(' / ');
+    }
+    return `
     <tr>
       <td>${i.employees.name}</td>
       <td>${typeLabel[i.type] || i.type}</td>
       <td>${i.start_date} 〜 ${i.end_date}</td>
       <td>${i.days}</td>
-      <td>${i.reason || ''}</td>
+      <td>${detail}</td>
       <td>
         <button class="small" onclick="approveRequest(${i.id})">承認</button>
         <button class="small" style="background:#dc2626" onclick="rejectRequest(${i.id})">却下</button>
       </td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 }
 
 function isApproverForStage(item) {
@@ -150,7 +185,10 @@ async function advanceStage(request, approverId, isSkip) {
 
 async function reflectToSchedule(request) {
   const scheduleType = request.type === 'paid_leave' ? 'paid_leave' : 'business_trip';
-  const title = request.type === 'paid_leave' ? '有給休暇' : '出張';
+  let title = request.type === 'paid_leave' ? '有給休暇' : '出張';
+  if (request.type === 'business_trip' && request.destination) {
+    title = `出張(${request.destination})`;
+  }
 
   await supabaseClient.from('schedules').insert({
     employee_id: request.employee_id,
