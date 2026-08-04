@@ -50,3 +50,9 @@ async function requireEmployee() {
 
   return emp;
 }
+// 日本時間での「今日の日付」を文字列で返す(UTCではなくJSTで計算する)
+function getJSTDateStr() {
+  const now = new Date();
+  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  return jst.toISOString().slice(0, 10);
+}
