@@ -28,17 +28,30 @@
 
   <h3>新規申請</h3>
   <label>種類</label>
-  <select id="new-type">
+  <select id="new-type" onchange="toggleTypeFields()">
     <option value="paid_leave">有給休暇</option>
     <option value="business_trip">出張</option>
   </select>
+
   <label>開始日</label>
   <input type="date" id="new-start">
   <label>終了日</label>
   <input type="date" id="new-end">
   <label>日数</label>
   <input type="number" id="new-days" step="0.5" min="0.5">
-  <label>事由</label>
+
+  <div id="trip-fields" style="display:none">
+    <label>行き先</label>
+    <input type="text" id="new-destination" placeholder="例:札幌市">
+    <label>交通機関</label>
+    <input type="text" id="new-transportation" placeholder="例:JR、自家用車">
+    <label style="display:flex; align-items:center; gap:8px; width:auto;">
+      <input type="checkbox" id="new-hotel" style="width:auto; margin:0;">
+      ホテル手配が必要
+    </label>
+  </div>
+
+  <label id="reason-label">事由</label>
   <input type="text" id="new-reason" placeholder="例:私用の為">
   <label>連絡先(携帯番号など、任意)</label>
   <input type="text" id="new-contact" placeholder="例:090-0000-0000">
@@ -47,7 +60,7 @@
   <div id="approval-section" style="display:none">
     <h3>承認待ちの申請</h3>
     <table>
-      <thead><tr><th>申請者</th><th>種類</th><th>期間</th><th>日数</th><th>事由</th><th>操作</th></tr></thead>
+      <thead><tr><th>申請者</th><th>種類</th><th>期間</th><th>日数</th><th>詳細</th><th>操作</th></tr></thead>
       <tbody id="approval-body"></tbody>
     </table>
   </div>
