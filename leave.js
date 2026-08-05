@@ -49,12 +49,13 @@ function updateEstimate() {
   }
 
   const rate = myTravelRates[zone];
+  const nights = Math.max(0, days - 1); // 宿泊数 = 日数 - 1
   const allowanceTotal = rate.daily_allowance * days;
-  const hotelTotal = hotelNeeded ? rate.hotel_fee * days : 0;
+  const hotelTotal = hotelNeeded ? rate.hotel_fee * nights : 0;
   const total = allowanceTotal + hotelTotal;
 
   box.textContent = `概算:日当 ${rate.daily_allowance}円 × ${days}日 = ${allowanceTotal}円` +
-    (hotelNeeded ? ` / 宿泊費 ${rate.hotel_fee}円 × ${days}日 = ${hotelTotal}円` : '') +
+    (hotelNeeded ? ` / 宿泊費 ${rate.hotel_fee}円 × ${nights}泊 = ${hotelTotal}円` : '') +
     ` / 合計 ${total}円(概算です。実費と異なる場合があります)`;
 }
 
@@ -102,9 +103,10 @@ async function submitRequest() {
 
     if (myTravelRates && myTravelRates[zone]) {
       const rate = myTravelRates[zone];
+      const nights = Math.max(0, Number(days) - 1);
       payload.daily_allowance = rate.daily_allowance;
       payload.hotel_fee = hotelNeeded ? rate.hotel_fee : 0;
-      payload.total_amount = (rate.daily_allowance * Number(days)) + (hotelNeeded ? rate.hotel_fee * Number(days) : 0);
+      payload.total_amount = (rate.daily_allowance * Number(days)) + (hotelNeeded ? rate.hotel_fee * nights : 0);
     }
   }
 
