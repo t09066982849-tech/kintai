@@ -133,13 +133,14 @@ function renderWeek(week) {
     const label = bar.item.employees ? bar.item.employees.name : '';
     const memberCount = bar.item.schedule_members ? bar.item.schedule_members.length : 0;
     const memberSuffix = memberCount > 0 ? ` +${memberCount}` : '';
+    const timeSuffix = bar.item.start_time ? `<span class="cal-event-time">${bar.item.start_time.slice(0,5)}〜</span>` : '';
     const cls = [
       'cal-event-bar',
       `cal-type-${bar.item.type}`,
       bar.continuesFromPrev ? 'cal-bar-noleft' : '',
       bar.continuesToNext ? 'cal-bar-noright' : ''
     ].join(' ');
-    html += `<div class="${cls}" style="grid-column:${bar.colStart+1} / ${bar.colEnd+2}; grid-row:${bar.slot+2};" onclick="openEventView(event, ${bar.item.id})" title="${bar.item.title || ''}">${label}: ${bar.item.title || typeLabel[bar.item.type]}${memberSuffix}</div>`;
+    html += `<div class="${cls}" style="grid-column:${bar.colStart+1} / ${bar.colEnd+2}; grid-row:${bar.slot+2};" onclick="openEventView(event, ${bar.item.id})" title="${bar.item.title || ''}"><span class="cal-event-label">${label}: ${bar.item.title || typeLabel[bar.item.type]}${memberSuffix}</span>${timeSuffix}</div>`;
   });
 
   html += '</div>';
