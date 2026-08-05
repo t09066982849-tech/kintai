@@ -34,12 +34,20 @@
     <option value="business_trip">出張</option>
   </select>
 
-  <label>開始日</label>
-  <input type="date" id="new-start">
-  <label>終了日</label>
-  <input type="date" id="new-end">
-  <label>日数</label>
-  <input type="number" id="new-days" step="0.5" min="0.5" oninput="updateEstimate()">
+  <div class="row-3">
+    <div>
+      <label>開始日</label>
+      <input type="date" id="new-start">
+    </div>
+    <div>
+      <label>終了日</label>
+      <input type="date" id="new-end">
+    </div>
+    <div>
+      <label>日数</label>
+      <input type="number" id="new-days" step="0.5" min="0.5" oninput="updateEstimate()">
+    </div>
+  </div>
 
   <div id="trip-fields" style="display:none">
     <label>行き先</label>
