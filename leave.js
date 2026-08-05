@@ -3,9 +3,14 @@ let employee = null;
 const typeLabel = { paid_leave: '有給休暇', business_trip: '出張' };
 const stageLabel = { manager: '部長承認待ち', director: '常務承認待ち', president: '社長承認待ち', done: '承認完了' };
 
-const PRESIDENT_NAME = '伊豆倉 寿信';
-const DIRECTOR_NAME = '伊豆倉 米郎';
-const MANAGER_NAME_BY_DEPT = { civil: '山本 英嗣', accounting: '佐藤 秀樹' };
+const APPROVER_ROLES = ['president', 'director', 'manager_civil', 'manager_accounting'];
+
+function requiredRoleForStage(stage, department) {
+  if (stage === 'manager') return department === 'accounting' ? 'manager_accounting' : 'manager_civil';
+  if (stage === 'director') return 'director';
+  if (stage === 'president') return 'president';
+  return null;
+}
 
 let myTravelRates = null; // { domestic: {daily_allowance, hotel_fee}, outside: {...} } または null(対象外)
 
@@ -13,7 +18,7 @@ async function init() {
   employee = await requireEmployee();
   if (!employee) return;
 
-  if ([PRESIDENT_NAME, DIRECTOR_NAME, '山本 英嗣', '佐藤 秀樹'].includes(employee.name)) {
+  if (APPROVER_ROLES.includes(employee.role)) {
     document.getElementById('approval-section').style.display = 'block';
     loadApprovalList();
   }
@@ -135,17 +140,10 @@ async function autoSkipIfSelf(request) {
   let guard = 0;
   while (current.status === 'pending' && guard < 5) {
     guard++;
-    const approverName = getApproverNameForStage(current);
-    if (approverName !== employee.name) break;
+    const requiredRole = requiredRoleForStage(current.current_stage, employee.department);
+    if (requiredRole !== employee.role) break;
     current = await advanceStage(current, employee.id, true);
   }
-}
-
-function getApproverNameForStage(request) {
-  if (request.current_stage === 'manager') return null;
-  if (request.current_stage === 'director') return DIRECTOR_NAME;
-  if (request.current_stage === 'president') return PRESIDENT_NAME;
-  return null;
 }
 
 async function loadApprovalList() {
@@ -195,13 +193,8 @@ async function loadApprovalList() {
 }
 
 function isApproverForStage(item) {
-  if (item.current_stage === 'manager') {
-    const managerName = MANAGER_NAME_BY_DEPT[item.employees.department];
-    return managerName === employee.name;
-  }
-  if (item.current_stage === 'director') return employee.name === DIRECTOR_NAME;
-  if (item.current_stage === 'president') return employee.name === PRESIDENT_NAME;
-  return false;
+  const requiredRole = requiredRoleForStage(item.current_stage, item.employees.department);
+  return employee.role === requiredRole;
 }
 
 async function advanceStage(request, approverId, isSkip) {
@@ -258,7 +251,7 @@ async function reflectToSchedule(request) {
 async function approveRequest(id) {
   const { data: request, error } = await supabaseClient
     .from('leave_requests')
-    .select('*, employees!leave_requests_employee_id_fkey(name, department)')
+    .select('*, employees!leave_requests_employee_id_fkey(name, department, role)')
     .eq('id', id)
     .single();
   if (error) { alert('エラー: ' + error.message); return; }
@@ -268,12 +261,8 @@ async function approveRequest(id) {
   let guard = 0;
   while (current.status === 'pending' && guard < 5) {
     guard++;
-    let nextApproverName;
-    if (current.current_stage === 'manager') nextApproverName = MANAGER_NAME_BY_DEPT[request.employees.department];
-    else if (current.current_stage === 'director') nextApproverName = DIRECTOR_NAME;
-    else if (current.current_stage === 'president') nextApproverName = PRESIDENT_NAME;
-
-    if (nextApproverName !== request.employees.name) break;
+    const nextRequiredRole = requiredRoleForStage(current.current_stage, request.employees.department);
+    if (nextRequiredRole !== request.employees.role) break;
     current = await advanceStage(current, request.employee_id, true);
   }
 
