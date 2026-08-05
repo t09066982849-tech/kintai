@@ -75,6 +75,8 @@ function renderPaidLeave(req, nameById, deptText, managerLabel) {
 }
 
 function renderBusinessTrip(req, nameById, deptText, managerLabel) {
+  const zoneLabel = req.zone === 'outside' ? '道外' : '道内';
+  const nights = req.hotel_needed ? Math.max(0, req.days - 1) : 0;
   return `
     <div class="doc-title">出張申請書</div>
     <p>株式会社伊豆倉組 様</p>
@@ -87,6 +89,10 @@ function renderBusinessTrip(req, nameById, deptText, managerLabel) {
       <tr><th>用件</th><td>${req.reason || ''}</td></tr>
       <tr><th>交通機関</th><td>${req.transportation || ''}</td></tr>
       <tr><th>宿泊</th><td>${req.hotel_needed ? '要' : '不要'}</td></tr>
+      <tr><th>区分</th><td>${zoneLabel}</td></tr>
+      <tr><th>日当</th><td>${req.daily_allowance != null ? req.daily_allowance + '円 × ' + req.days + '日' : ''}</td></tr>
+      <tr><th>宿泊費</th><td>${req.hotel_needed && req.hotel_fee != null ? req.hotel_fee + '円 × ' + nights + '泊' : '-'}</td></tr>
+      <tr><th>合計金額</th><td>${req.total_amount != null ? req.total_amount + '円(概算)' : ''}</td></tr>
       <tr><th>連絡先</th><td>${req.contact_phone || ''}</td></tr>
     </table>
   `;
