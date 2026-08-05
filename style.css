@@ -1,5 +1,8 @@
 body { font-family: sans-serif; max-width: 700px; margin: 40px auto; padding: 0 16px; }
 body.wide-page { max-width: 1050px; }
+.row-3 { display: flex; gap: 10px; flex-wrap: wrap; }
+.row-3 > div { flex: 1; min-width: 100px; }
+.row-3 label { margin-top: 0; }
 input, select, button, textarea { width: 100%; padding: 10px; margin: 6px 0; font-size: 16px; box-sizing: border-box; }
 button { background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; }
 button.small { width: auto; padding: 4px 10px; font-size: 13px; }
