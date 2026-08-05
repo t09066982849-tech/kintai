@@ -38,7 +38,7 @@
   <label>終了日</label>
   <input type="date" id="new-end">
   <label>日数</label>
-  <input type="number" id="new-days" step="0.5" min="0.5">
+  <input type="number" id="new-days" step="0.5" min="0.5" oninput="updateEstimate()">
 
   <div id="trip-fields" style="display:none">
     <label>行き先</label>
@@ -46,9 +46,15 @@
     <label>交通機関</label>
     <input type="text" id="new-transportation" placeholder="例:JR、自家用車">
     <label style="display:flex; align-items:center; gap:8px; width:auto;">
-      <input type="checkbox" id="new-hotel" style="width:auto; margin:0;">
+      <input type="checkbox" id="new-hotel" style="width:auto; margin:0;" onchange="updateEstimate()">
       ホテル手配が必要
     </label>
+    <label>区分</label>
+    <select id="new-zone" onchange="updateEstimate()">
+      <option value="domestic">道内</option>
+      <option value="outside">道外</option>
+    </select>
+    <div id="estimate-box" style="margin-top:8px; padding:10px; background:#f3f4f6; border-radius:6px; font-size:14px;"></div>
   </div>
 
   <label id="reason-label">事由</label>
