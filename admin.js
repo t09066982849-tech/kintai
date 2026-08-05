@@ -17,6 +17,7 @@ async function init() {
 
   loadRequests();
   loadSites();
+  loadApprovedLeaveRequests();
 }
 
 function fmtTime(t) {
@@ -185,6 +186,45 @@ async function exportExcel() {
   });
 
   XLSX.writeFile(wb, `勤怠データ_${monthVal}.xlsx`);
+}
+
+const adminTypeLabel = { paid_leave: '有給休暇', business_trip: '出張' };
+
+async function loadApprovedLeaveRequests() {
+  const { data: items, error } = await supabaseClient
+    .from('leave_requests')
+    .select('*, employees!leave_requests_employee_id_fkey(name)')
+    .eq('status', 'approved')
+    .order('start_date', { ascending: false });
+
+  if (error) { console.error(error); return; }
+
+  const tbody = document.getElementById('approved-leave-body');
+  if (items.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4">承認済みの申請はありません</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = items.map(i => `
+    <tr>
+      <td>${i.employees ? i.employees.name : ''}</td>
+      <td>${adminTypeLabel[i.type] || i.type}</td>
+      <td>${i.start_date} 〜 ${i.end_date}</td>
+      <td>
+        <a href="document.html?id=${i.id}" target="_blank">書類を見る</a>
+        <button class="small" style="background:#dc2626" onclick="deleteLeaveRequestAdmin(${i.id})">削除</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function deleteLeaveRequestAdmin(id) {
+  if (!confirm('この申請データを削除しますか？Fileforceへの保管が済んでいることを確認してから削除してください。')) return;
+  if (!confirm('本当に削除しますか？この操作は取り消せません。')) return;
+
+  const { error } = await supabaseClient.from('leave_requests').delete().eq('id', id);
+  if (error) { alert('エラー: ' + error.message); return; }
+  loadApprovedLeaveRequests();
 }
 
 init();
