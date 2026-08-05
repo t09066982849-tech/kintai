@@ -91,6 +91,13 @@ function renderWeek(week) {
     return itemEnd >= weekStart && i.date <= weekEnd;
   });
 
+  function priority(item) {
+    const isMultiDay = item.end_date && item.end_date !== item.date;
+    if (isMultiDay) return 0;      // 日をまたぐ予定
+    if (!item.start_time) return 1; // 終日の予定
+    return 2;                       // 時刻指定あり
+  }
+
   const bars = weekEvents.map(i => {
     const itemEnd = i.end_date || i.date;
     let colStart = week.findIndex(d => d === i.date);
@@ -104,7 +111,14 @@ function renderWeek(week) {
       continuesFromPrev: i.date < weekStart,
       continuesToNext: itemEnd > weekEnd
     };
-  }).sort((a, b) => a.colStart - b.colStart || (b.colEnd - b.colStart) - (a.colEnd - a.colStart));
+  }).sort((a, b) => {
+    const pa = priority(a.item), pb = priority(b.item);
+    if (pa !== pb) return pa - pb;
+    if (pa === 2) {
+      return (a.item.start_time || '').localeCompare(b.item.start_time || '');
+    }
+    return a.colStart - b.colStart || (b.colEnd - b.colStart) - (a.colEnd - a.colStart);
+  });
 
   const slotEnds = [];
   bars.forEach(bar => {
