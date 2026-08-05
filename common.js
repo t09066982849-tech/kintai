@@ -48,6 +48,9 @@ async function requireEmployee() {
   document.getElementById('main-box').style.display = 'block';
   document.getElementById('welcome').textContent = emp.name + ' さん';
 
+  const adminLink = document.getElementById('nav-admin-link');
+  if (adminLink) adminLink.style.display = emp.is_admin ? 'inline-block' : 'none';
+
   return emp;
 }
 // 日本時間での「今日の日付」を文字列で返す(UTCではなくJSTで計算する)
