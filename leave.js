@@ -7,6 +7,8 @@ const PRESIDENT_NAME = '伊豆倉 寿信';
 const DIRECTOR_NAME = '伊豆倉 米郎';
 const MANAGER_NAME_BY_DEPT = { civil: '山本 英嗣', accounting: '佐藤 秀樹' };
 
+let myTravelRates = null; // { domestic: {daily_allowance, hotel_fee}, outside: {...} } または null(対象外)
+
 async function init() {
   employee = await requireEmployee();
   if (!employee) return;
@@ -16,8 +18,44 @@ async function init() {
     loadApprovalList();
   }
 
+  await loadMyTravelRates();
   toggleTypeFields();
   loadMyRequests();
+}
+
+async function loadMyTravelRates() {
+  if (!employee.travel_rate_group_id) { myTravelRates = null; return; }
+
+  const { data, error } = await supabaseClient
+    .from('travel_rates')
+    .select('zone, daily_allowance, hotel_fee')
+    .eq('group_id', employee.travel_rate_group_id);
+
+  if (error || !data) { myTravelRates = null; return; }
+
+  myTravelRates = {};
+  data.forEach(r => { myTravelRates[r.zone] = r; });
+}
+
+function updateEstimate() {
+  const box = document.getElementById('estimate-box');
+  const zone = document.getElementById('new-zone').value;
+  const days = Number(document.getElementById('new-days').value) || 0;
+  const hotelNeeded = document.getElementById('new-hotel').checked;
+
+  if (!myTravelRates || !myTravelRates[zone]) {
+    box.textContent = 'この区分の旅費規程が設定されていません。経理にご確認ください。';
+    return;
+  }
+
+  const rate = myTravelRates[zone];
+  const allowanceTotal = rate.daily_allowance * days;
+  const hotelTotal = hotelNeeded ? rate.hotel_fee * days : 0;
+  const total = allowanceTotal + hotelTotal;
+
+  box.textContent = `概算:日当 ${rate.daily_allowance}円 × ${days}日 = ${allowanceTotal}円` +
+    (hotelNeeded ? ` / 宿泊費 ${rate.hotel_fee}円 × ${days}日 = ${hotelTotal}円` : '') +
+    ` / 合計 ${total}円(概算です。実費と異なる場合があります)`;
 }
 
 function toggleTypeFields() {
@@ -26,6 +64,7 @@ function toggleTypeFields() {
   document.getElementById('trip-fields').style.display = isTrip ? 'block' : 'none';
   document.getElementById('reason-label').textContent = isTrip ? '用件' : '事由';
   document.getElementById('new-reason').placeholder = isTrip ? '例:○○現場視察の為' : '例:私用の為';
+  if (isTrip) updateEstimate();
 }
 
 async function submitRequest() {
@@ -52,12 +91,21 @@ async function submitRequest() {
     const destination = document.getElementById('new-destination').value.trim();
     const transportation = document.getElementById('new-transportation').value.trim();
     const hotelNeeded = document.getElementById('new-hotel').checked;
+    const zone = document.getElementById('new-zone').value;
 
     if (!destination) { alert('行き先を入力してください'); return; }
 
     payload.destination = destination;
     payload.transportation = transportation || null;
     payload.hotel_needed = hotelNeeded;
+    payload.zone = zone;
+
+    if (myTravelRates && myTravelRates[zone]) {
+      const rate = myTravelRates[zone];
+      payload.daily_allowance = rate.daily_allowance;
+      payload.hotel_fee = hotelNeeded ? rate.hotel_fee : 0;
+      payload.total_amount = (rate.daily_allowance * Number(days)) + (hotelNeeded ? rate.hotel_fee * Number(days) : 0);
+    }
   }
 
   const { data, error } = await supabaseClient.from('leave_requests').insert(payload).select().single();
@@ -72,6 +120,7 @@ async function submitRequest() {
   document.getElementById('new-destination').value = '';
   document.getElementById('new-transportation').value = '';
   document.getElementById('new-hotel').checked = false;
+  document.getElementById('estimate-box').textContent = '';
 
   await autoSkipIfSelf(data);
 
@@ -117,10 +166,13 @@ async function loadApprovalList() {
   tbody.innerHTML = myApprovals.map(i => {
     let detail = i.reason || '';
     if (i.type === 'business_trip') {
+      const zoneLabel = i.zone === 'outside' ? '道外' : '道内';
       const parts = [];
       if (i.destination) parts.push('行き先:' + i.destination);
       if (i.transportation) parts.push('交通:' + i.transportation);
+      parts.push('区分:' + zoneLabel);
       parts.push('ホテル:' + (i.hotel_needed ? '要' : '不要'));
+      if (i.total_amount != null) parts.push('概算合計:' + i.total_amount + '円');
       parts.push('用件:' + (i.reason || ''));
       detail = parts.join(' / ');
     }
