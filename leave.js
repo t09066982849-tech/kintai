@@ -12,6 +12,17 @@ function requiredRoleForStage(stage, department) {
   return null;
 }
 
+// 承認フェーズ通知メールを呼び出す(失敗しても申請・承認の処理自体は止めない)
+async function notifyApprovalStage(requestId) {
+  try {
+    await supabaseClient.functions.invoke('notify-leave-approval', {
+      body: { requestId }
+    });
+  } catch (e) {
+    console.error('通知メールの送信に失敗しました', e);
+  }
+}
+
 let myTravelRates = null; // { domestic: {daily_allowance, hotel_fee}, outside: {...} } または null(対象外)
 
 async function init() {
@@ -130,6 +141,7 @@ async function submitRequest() {
   document.getElementById('estimate-box').textContent = '';
 
   await autoSkipIfSelf(data);
+  await notifyApprovalStage(data.id);
 
   loadMyRequests();
   if (document.getElementById('approval-section').style.display === 'block') loadApprovalList();
@@ -265,6 +277,8 @@ async function approveRequest(id) {
     if (nextRequiredRole !== request.employees.role) break;
     current = await advanceStage(current, request.employee_id, true);
   }
+
+  await notifyApprovalStage(id);
 
   loadApprovalList();
 }
