@@ -81,14 +81,17 @@ function renderBusinessTrip(req, nameById, deptText, managerLabel) {
     <div class="doc-title">出張申請書</div>
     <div class="doc-header">
       <div class="doc-header-to">株式会社伊豆倉組 様</div>
-      <div class="doc-header-seals">
-        <div><div class="seal-label">${managerLabel}</div>${seal(nameById[req.manager_approved_by], true)}</div>
-        <div><div class="seal-label">常務</div>${seal(nameById[req.director_approved_by], true)}</div>
-        <div><div class="seal-label">社長</div>${seal(nameById[req.president_approved_by], true)}</div>
-      </div>
+      <table class="seal-table">
+        <tr><th>社長</th><th>常務</th><th>${managerLabel}</th></tr>
+        <tr>
+          <td>${seal(nameById[req.president_approved_by], true)}</td>
+          <td>${seal(nameById[req.director_approved_by], true)}</td>
+          <td>${seal(nameById[req.manager_approved_by], true)}</td>
+        </tr>
+      </table>
     </div>
     <table class="multi-col">
-      <tr><th>氏名</th><td>${req.employees.name}</td><th>所属</th><td>${deptText}</td></tr>
+      <tr><th>氏名</th><td>${req.employees.name}</td><th>所属</th><td>${deptText}</td><th></th><td></td></tr>
       <tr><th>期間</th><td>${req.start_date} 〜 ${req.end_date}(${req.days}日間)</td><th>行き先</th><td>${req.destination || ''}</td><th>用件</th><td>${req.reason || ''}</td></tr>
       <tr><th>交通機関</th><td>${req.transportation || ''}</td><th>宿泊</th><td>${req.hotel_needed ? '要' : '不要'}</td><th>区分</th><td>${zoneLabel}</td></tr>
       <tr><th>日当</th><td>${req.daily_allowance != null ? req.daily_allowance + '円 × ' + req.days + '日' : ''}</td><th>宿泊費</th><td>${req.hotel_needed && req.hotel_fee != null ? req.hotel_fee + '円 × ' + nights + '泊' : '-'}</td><th>合計金額</th><td>${req.total_amount != null ? req.total_amount + '円(概算)' : ''}</td></tr>
