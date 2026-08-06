@@ -40,9 +40,21 @@ async function init() {
   updateButton();
   loadHistory();
 
+  updateClock();
+  setInterval(updateClock, 1000);
+
   setInterval(refreshTodayStatus, 60000);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) refreshTodayStatus();
+  });
+}
+
+function updateClock() {
+  const el = document.getElementById('current-time');
+  if (!el) return;
+  el.textContent = new Date().toLocaleString('ja-JP', {
+    year: 'numeric', month: 'long', day: 'numeric', weekday: 'short',
+    hour: '2-digit', minute: '2-digit', second: '2-digit'
   });
 }
 
