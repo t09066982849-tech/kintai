@@ -29,6 +29,8 @@ function changeMonth(diff) {
   loadSchedule();
 }
 
+let holidaysByDate = {};
+
 async function loadSchedule() {
   document.getElementById('month-label').textContent = `${viewYear}年${viewMonth}月`;
 
@@ -50,6 +52,15 @@ async function loadSchedule() {
     const itemEnd = i.end_date || i.date;
     return itemEnd >= startDate && i.date <= endDate;
   });
+
+  const { data: holidays } = await supabaseClient
+    .from('holidays')
+    .select('*')
+    .gte('date', startDate)
+    .lte('date', endDate);
+
+  holidaysByDate = {};
+  (holidays || []).forEach(h => { holidaysByDate[h.date] = h.name; });
 
   renderCalendar();
 }
@@ -138,8 +149,11 @@ function renderWeek(week) {
     }
     const day = Number(dateStr.slice(8, 10));
     const weekday = new Date(viewYear, viewMonth - 1, day).getDay();
-    html += `<div class="cal-daycell ${weekday===0?'cal-sun':''} ${weekday===6?'cal-sat':''}" style="grid-column:${col+1}; grid-row:1/-1" onclick="openAddModal('${dateStr}')">
+    const holidayName = holidaysByDate[dateStr];
+    const isHoliday = !!holidayName;
+    html += `<div class="cal-daycell ${weekday===0?'cal-sun':''} ${weekday===6?'cal-sat':''} ${isHoliday?'cal-holiday':''}" style="grid-column:${col+1}; grid-row:1/-1" onclick="openAddModal('${dateStr}')">
       <div class="cal-daynum">${day}</div>
+      ${isHoliday ? `<div class="cal-holiday-name">${holidayName}</div>` : ''}
     </div>`;
   });
 
