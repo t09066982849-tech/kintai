@@ -302,13 +302,24 @@ async function loadMyRequests() {
     else if (i.status === 'approved') statusText = `承認完了 <a href="document.html?id=${i.id}" target="_blank">書類を見る</a>`;
     else statusText = stageLabel[i.current_stage] || i.current_stage;
 
+    const canCancel = i.status === 'pending' && !i.manager_approved_by;
+    const cancelCell = canCancel ? `<button class="small" style="background:#dc2626" onclick="cancelMyRequest(${i.id})">取り消し</button>` : '-';
+
     return `<tr>
       <td>${typeLabel[i.type] || i.type}</td>
       <td>${i.start_date} 〜 ${i.end_date}</td>
       <td>${i.days}</td>
       <td>${statusText}</td>
+      <td>${cancelCell}</td>
     </tr>`;
   }).join('');
+}
+
+async function cancelMyRequest(id) {
+  if (!confirm('この申請を取り消しますか？')) return;
+  const { error } = await supabaseClient.from('leave_requests').delete().eq('id', id);
+  if (error) { alert('エラー: ' + error.message + '(すでに承認が始まっている場合は取り消せません)'); return; }
+  loadMyRequests();
 }
 
 init();
