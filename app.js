@@ -11,7 +11,7 @@ async function init() {
   employee = await requireEmployee();
   if (!employee) return;
 
-  document.getElementById('paid-leave-balance').textContent = `残り有給:${employee.paid_leave_balance}日`;
+  document.getElementById('paid-leave-balance').innerHTML = `残り有給:<span style="color:#dc2626">${employee.paid_leave_balance}</span>日`;
 
   const { data: sites } = await supabaseClient.from('sites').select('*');
   allSites = sites;
@@ -197,7 +197,7 @@ async function loadHistory() {
 
   const overtimeHours = Math.floor(totalOvertimeMinutes / 60);
   const overtimeMins = totalOvertimeMinutes % 60;
-  document.getElementById('overtime-summary').textContent = `今月の残業:${overtimeHours}時間${overtimeMins}分`;
+  document.getElementById('overtime-summary').innerHTML = `今月の残業:<span style="color:#dc2626">${overtimeHours}時間${overtimeMins}分</span>`;
 }
 
 function openModal(recordId) {
