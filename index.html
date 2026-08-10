@@ -41,6 +41,14 @@
     <thead><tr><th>日付</th><th>現場</th><th>出勤</th><th>退勤</th><th>勤務時間</th><th>修正</th></tr></thead>
     <tbody id="history-body"></tbody>
   </table>
+
+  <h3>パスワード変更</h3>
+  <label>新しいパスワード</label>
+  <input type="password" id="new-password" placeholder="6文字以上">
+  <label>新しいパスワード(確認)</label>
+  <input type="password" id="new-password-confirm">
+  <button onclick="changePassword()">変更する</button>
+  <p id="password-message"></p>
 </div>
 
 <div class="modal-bg" id="modal-bg">
