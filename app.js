@@ -11,6 +11,8 @@ async function init() {
   employee = await requireEmployee();
   if (!employee) return;
 
+  document.getElementById('paid-leave-balance').textContent = `残り有給:${employee.paid_leave_balance}日`;
+
   const { data: sites } = await supabaseClient.from('sites').select('*');
   allSites = sites;
   const select = document.getElementById('site-select');
