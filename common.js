@@ -59,3 +59,43 @@ function getJSTDateStr() {
   const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   return jst.toISOString().slice(0, 10);
 }
+
+// 出退勤時刻を、現場の所定時間(work_start/work_end)を基準に補正する。
+// 早出・残業は最大1時間まで認め、それを超える分は所定時刻+-1時間で打ち切る。
+// 遅刻・早上がりはそのまま(補正しない)。
+function computeDayMetrics(dateStr, clockIn, clockOut, workStart, workEnd) {
+  const startStr = workStart || '07:00';
+  const endStr = workEnd || '17:00';
+  const scheduledStart = new Date(dateStr + 'T' + startStr + ':00+09:00');
+  const scheduledEnd = new Date(dateStr + 'T' + endStr + ':00+09:00');
+  const earlyCap = new Date(scheduledStart.getTime() - 60 * 60000);
+  const lateCap = new Date(scheduledEnd.getTime() + 60 * 60000);
+
+  let adjustedIn = clockIn ? new Date(clockIn) : null;
+  let adjustedOut = clockOut ? new Date(clockOut) : null;
+
+  if (adjustedIn && adjustedIn < earlyCap) adjustedIn = earlyCap;
+  if (adjustedOut && adjustedOut > lateCap) adjustedOut = lateCap;
+
+  let workMinutes = null;
+  let overtimeMinutes = 0;
+  if (adjustedIn && adjustedOut) {
+    workMinutes = Math.round((adjustedOut - adjustedIn) / 60000);
+    const earlyMinutes = Math.max(0, Math.round((scheduledStart - adjustedIn) / 60000));
+    const lateMinutes = Math.max(0, Math.round((adjustedOut - scheduledEnd) / 60000));
+    overtimeMinutes = earlyMinutes + lateMinutes;
+  }
+
+  return { adjustedIn, adjustedOut, workMinutes, overtimeMinutes, scheduledStart, scheduledEnd, earlyCap, lateCap };
+}
+
+function formatMinutesJa(mins) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${h}時間${m}分`;
+}
+
+function formatTimeJa(date) {
+  if (!date) return '-';
+  return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+}
