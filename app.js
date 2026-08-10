@@ -33,7 +33,7 @@ async function init() {
   currentDateStr = getJSTDateStr();
   const { data: record } = await supabaseClient
     .from('time_records')
-    .select('*')
+    .select('*, sites(work_start, work_end)')
     .eq('employee_id', employee.id)
     .eq('date', currentDateStr)
     .maybeSingle();
@@ -68,7 +68,7 @@ async function refreshTodayStatus() {
   currentDateStr = today;
   const { data: record } = await supabaseClient
     .from('time_records')
-    .select('*')
+    .select('*, sites(work_start, work_end)')
     .eq('employee_id', employee.id)
     .eq('date', today)
     .maybeSingle();
@@ -92,11 +92,17 @@ function updateButton() {
     siteSelect.disabled = true;
     btn.textContent = '退勤';
     btn.onclick = clockOut;
-    status.textContent = '出勤時刻: ' + new Date(todayRecord.clock_in).toLocaleTimeString('ja-JP');
+    const workStart = todayRecord.sites ? todayRecord.sites.work_start : null;
+    const workEnd = todayRecord.sites ? todayRecord.sites.work_end : null;
+    const metrics = computeDayMetrics(todayRecord.date, todayRecord.clock_in, null, workStart, workEnd);
+    status.textContent = '出勤時刻: ' + formatTimeJa(metrics.adjustedIn);
   } else {
     siteSelect.disabled = true;
     btn.style.display = 'none';
-    status.textContent = '本日の勤務は完了しました\n出勤: ' + new Date(todayRecord.clock_in).toLocaleTimeString('ja-JP') + ' / 退勤: ' + new Date(todayRecord.clock_out).toLocaleTimeString('ja-JP');
+    const workStart = todayRecord.sites ? todayRecord.sites.work_start : null;
+    const workEnd = todayRecord.sites ? todayRecord.sites.work_end : null;
+    const metrics = computeDayMetrics(todayRecord.date, todayRecord.clock_in, todayRecord.clock_out, workStart, workEnd);
+    status.textContent = '本日の勤務は完了しました\n出勤: ' + formatTimeJa(metrics.adjustedIn) + ' / 退勤: ' + formatTimeJa(metrics.adjustedOut);
   }
 }
 
@@ -105,37 +111,6 @@ function changeMonth(diff) {
   if (viewMonth > 12) { viewMonth = 1; viewYear++; }
   if (viewMonth < 1) { viewMonth = 12; viewYear--; }
   loadHistory();
-}
-
-function getAdjustedTimes(dateStr, clockIn, clockOut) {
-  const lowerBound = new Date(dateStr + 'T07:00:00+09:00');
-  const upperBound = new Date(dateStr + 'T18:00:00+09:00');
-
-  let adjustedIn = clockIn ? new Date(clockIn) : null;
-  let adjustedOut = clockOut ? new Date(clockOut) : null;
-
-  if (adjustedIn && adjustedIn < lowerBound) adjustedIn = lowerBound;
-  if (adjustedOut && adjustedOut > upperBound) adjustedOut = upperBound;
-
-  return { adjustedIn, adjustedOut };
-}
-
-// 出勤・退勤それぞれ最大1時間まで、残業として計算する(1日最大2時間)
-function getOvertimeMinutes(dateStr, clockIn, clockOut, workStart, workEnd) {
-  if (!clockIn || !clockOut) return 0;
-
-  const startStr = workStart || '07:00';
-  const endStr = workEnd || '17:00';
-  const scheduledStart = new Date(dateStr + 'T' + startStr + ':00+09:00');
-  const scheduledEnd = new Date(dateStr + 'T' + endStr + ':00+09:00');
-
-  const actualIn = new Date(clockIn);
-  const actualOut = new Date(clockOut);
-
-  const earlyMinutes = Math.max(0, Math.round((scheduledStart - actualIn) / 60000));
-  const lateMinutes = Math.max(0, Math.round((actualOut - scheduledEnd) / 60000));
-
-  return Math.min(earlyMinutes, 60) + Math.min(lateMinutes, 60);
 }
 
 async function loadHistory() {
@@ -160,28 +135,23 @@ async function loadHistory() {
   const tbody = document.getElementById('history-body');
   if (records.length === 0) {
     tbody.innerHTML = '<tr><td colspan="6">記録がありません</td></tr>';
-    document.getElementById('overtime-summary').textContent = '';
+    document.getElementById('overtime-summary').innerHTML = '';
     return;
   }
 
   let totalOvertimeMinutes = 0;
 
   tbody.innerHTML = records.map(r => {
-    const inTime = r.clock_in ? new Date(r.clock_in).toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : '-';
-    const outTime = r.clock_out ? new Date(r.clock_out).toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : '-';
+    const workStart = r.sites ? r.sites.work_start : null;
+    const workEnd = r.sites ? r.sites.work_end : null;
+    const metrics = computeDayMetrics(r.date, r.clock_in, r.clock_out, workStart, workEnd);
 
-    let workTime = '-';
-    if (r.clock_in && r.clock_out) {
-      const { adjustedIn, adjustedOut } = getAdjustedTimes(r.date, r.clock_in, r.clock_out);
-      const diffMs = adjustedOut - adjustedIn;
-      const hours = Math.floor(diffMs / 3600000);
-      const mins = Math.round((diffMs % 3600000) / 60000);
-      workTime = hours + '時間' + mins + '分';
+    const inTime = formatTimeJa(metrics.adjustedIn);
+    const outTime = formatTimeJa(metrics.adjustedOut);
+    const workTime = metrics.workMinutes != null ? formatMinutesJa(metrics.workMinutes) : '-';
 
-      const workStart = r.sites ? r.sites.work_start : null;
-      const workEnd = r.sites ? r.sites.work_end : null;
-      totalOvertimeMinutes += getOvertimeMinutes(r.date, r.clock_in, r.clock_out, workStart, workEnd);
-    }
+    if (metrics.workMinutes != null) totalOvertimeMinutes += metrics.overtimeMinutes;
+
     const siteName = r.sites ? r.sites.name : '-';
 
     let actionCell = `<button class="small" onclick="openModal(${r.id})">申請</button>`;
@@ -217,8 +187,35 @@ function closeModal() {
   document.getElementById('modal-bg').style.display = 'none';
 }
 
+// 修正申請は位置情報がなく早出・残業の証跡にならないため、所定時間を超える入力は
+// 所定時刻ちょうどに自動修正する(遅刻・早上がりはそのまま自由に入力できる)。
+function validateCorrectionTimes() {
+  if (!modalRecord) return;
+
+  const siteId = document.getElementById('req-site-select').value;
+  const site = allSites.find(s => String(s.id) === String(siteId));
+  const workStart = site ? site.work_start : null;
+  const workEnd = site ? site.work_end : null;
+  const startStr = (workStart || '07:00').slice(0, 5);
+  const endStr = (workEnd || '17:00').slice(0, 5);
+
+  const inInput = document.getElementById('req-clock-in');
+  const outInput = document.getElementById('req-clock-out');
+
+  if (inInput.value && inInput.value < startStr) {
+    alert(`修正申請では早出は認められません。出勤時刻を所定時刻(${startStr})に修正します。`);
+    inInput.value = startStr;
+  }
+  if (outInput.value && outInput.value > endStr) {
+    alert(`修正申請では残業は認められません。退勤時刻を所定時刻(${endStr})に修正します。`);
+    outInput.value = endStr;
+  }
+}
+
 async function submitCorrection() {
   if (!(await ensureSession())) return;
+
+  validateCorrectionTimes();
 
   const inVal = document.getElementById('req-clock-in').value;
   const outVal = document.getElementById('req-clock-out').value;
@@ -266,7 +263,7 @@ async function clockIn() {
     clock_in: new Date().toISOString(),
     clock_in_lat: pos ? pos.lat : null,
     clock_in_lng: pos ? pos.lng : null
-  }).select().single();
+  }).select('*, sites(work_start, work_end)').single();
   if (error) { alert('エラー: ' + error.message); btn.disabled = false; return; }
   todayRecord = data;
   updateButton();
@@ -284,7 +281,7 @@ async function clockOut() {
     clock_out: new Date().toISOString(),
     clock_out_lat: pos ? pos.lat : null,
     clock_out_lng: pos ? pos.lng : null
-  }).eq('id', todayRecord.id).select().single();
+  }).eq('id', todayRecord.id).select('*, sites(work_start, work_end)').single();
   if (error) { alert('エラー: ' + error.message); btn.disabled = false; return; }
   todayRecord = data;
   updateButton();
