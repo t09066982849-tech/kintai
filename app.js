@@ -259,4 +259,33 @@ async function clockOut() {
   loadHistory();
 }
 
+async function changePassword() {
+  const pw = document.getElementById('new-password').value;
+  const pwConfirm = document.getElementById('new-password-confirm').value;
+  const msg = document.getElementById('password-message');
+
+  if (pw.length < 6) {
+    msg.style.color = 'red';
+    msg.textContent = 'パスワードは6文字以上で入力してください';
+    return;
+  }
+  if (pw !== pwConfirm) {
+    msg.style.color = 'red';
+    msg.textContent = '確認用パスワードが一致しません';
+    return;
+  }
+
+  const { error } = await supabaseClient.auth.updateUser({ password: pw });
+  if (error) {
+    msg.style.color = 'red';
+    msg.textContent = 'エラー: ' + error.message;
+    return;
+  }
+
+  msg.style.color = 'green';
+  msg.textContent = 'パスワードを変更しました';
+  document.getElementById('new-password').value = '';
+  document.getElementById('new-password-confirm').value = '';
+}
+
 init();
