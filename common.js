@@ -64,8 +64,8 @@ function getJSTDateStr() {
 // 早出・残業は最大1時間まで認め、それを超える分は所定時刻+-1時間で打ち切る。
 // 遅刻・早上がりはそのまま(補正しない)。
 function computeDayMetrics(dateStr, clockIn, clockOut, workStart, workEnd) {
-  const startStr = workStart || '07:00';
-  const endStr = workEnd || '17:00';
+  const startStr = (workStart || '07:00').slice(0, 5);
+  const endStr = (workEnd || '17:00').slice(0, 5);
   const scheduledStart = new Date(dateStr + 'T' + startStr + ':00+09:00');
   const scheduledEnd = new Date(dateStr + 'T' + endStr + ':00+09:00');
   const earlyCap = new Date(scheduledStart.getTime() - 60 * 60000);
