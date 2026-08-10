@@ -19,7 +19,10 @@
 
 <div id="main-box" style="display:none">
   <p id="welcome"></p>
-  <p id="paid-leave-balance"></p>
+  <div style="display:flex; gap:16px; font-size:28px; font-weight:bold; margin:8px 0;">
+    <span id="paid-leave-balance"></span>
+    <span id="overtime-summary"></span>
+  </div>
   <p id="current-time" style="font-size:24px; font-weight:bold; margin:8px 0;"></p>
   <div class="nav-links">
    <a href="index.html" class="nav-link active">勤怠</a>
@@ -42,7 +45,6 @@
     <thead><tr><th>日付</th><th>現場</th><th>出勤</th><th>退勤</th><th>勤務時間</th><th>修正</th></tr></thead>
     <tbody id="history-body"></tbody>
   </table>
-  <p id="overtime-summary"></p>
 
   <h3>パスワード変更</h3>
   <label>新しいパスワード</label>
