@@ -60,11 +60,11 @@
     <h3>打刻修正申請</h3>
     <p id="modal-date"></p>
     <label>現場</label>
-    <select id="req-site-select"></select>
+    <select id="req-site-select" onchange="validateCorrectionTimes()"></select>
     <label>出勤時刻</label>
-    <input type="time" id="req-clock-in">
+    <input type="time" id="req-clock-in" onchange="validateCorrectionTimes()">
     <label>退勤時刻</label>
-    <input type="time" id="req-clock-out">
+    <input type="time" id="req-clock-out" onchange="validateCorrectionTimes()">
     <button onclick="submitCorrection()">申請する</button>
     <button style="background:#9ca3af" onclick="closeModal()">キャンセル</button>
   </div>
