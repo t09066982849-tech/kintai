@@ -134,7 +134,7 @@ async function exportExcel() {
 
   const { data: records, error } = await supabaseClient
     .from('time_records')
-    .select('*, employees(id, name), sites(name)')
+    .select('*, employees(id, name), sites(name, work_start, work_end)')
     .gte('date', startDate)
     .lte('date', endDate)
     .order('employee_id', { ascending: true })
@@ -150,19 +150,14 @@ async function exportExcel() {
     const empName = r.employees ? r.employees.name : '不明';
     if (!grouped[empId]) grouped[empId] = { name: empName, rows: [] };
 
-    const inTime = r.clock_in ? new Date(r.clock_in).toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : '';
-    const outTime = r.clock_out ? new Date(r.clock_out).toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : '';
+    const workStart = r.sites ? r.sites.work_start : null;
+    const workEnd = r.sites ? r.sites.work_end : null;
+    const metrics = computeDayMetrics(r.date, r.clock_in, r.clock_out, workStart, workEnd);
 
-    let workTime = '';
-    if (r.clock_in && r.clock_out) {
-      const diffMs = new Date(r.clock_out) - new Date(r.clock_in);
-      const hours = Math.floor(diffMs / 3600000);
-      const mins = Math.round((diffMs % 3600000) / 60000);
-      workTime = hours + '時間' + mins + '分';
-    }
-
-    const inGps = (r.clock_in_lat && r.clock_in_lng) ? `${r.clock_in_lat}, ${r.clock_in_lng}` : '';
-    const outGps = (r.clock_out_lat && r.clock_out_lng) ? `${r.clock_out_lat}, ${r.clock_out_lng}` : '';
+    const inTime = formatTimeJa(metrics.adjustedIn);
+    const outTime = formatTimeJa(metrics.adjustedOut);
+    const workTime = metrics.workMinutes != null ? formatMinutesJa(metrics.workMinutes) : '';
+    const overtimeTime = metrics.workMinutes != null ? formatMinutesJa(metrics.overtimeMinutes) : '';
 
     grouped[empId].rows.push({
       '日付': r.date,
@@ -170,8 +165,7 @@ async function exportExcel() {
       '出勤時刻': inTime,
       '退勤時刻': outTime,
       '勤務時間': workTime,
-      '出勤位置': inGps,
-      '退勤位置': outGps
+      '残業時間': overtimeTime
     });
   });
 
@@ -180,7 +174,7 @@ async function exportExcel() {
 
   Object.values(grouped).forEach(group => {
     const ws = XLSX.utils.json_to_sheet(group.rows);
-    ws['!cols'] = [{wch:12},{wch:14},{wch:10},{wch:10},{wch:10},{wch:20},{wch:20}];
+    ws['!cols'] = [{wch:12},{wch:14},{wch:10},{wch:10},{wch:10},{wch:10}];
     const sheetName = safeSheetName(group.name, usedNames);
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
   });
