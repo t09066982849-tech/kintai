@@ -120,6 +120,24 @@ function getAdjustedTimes(dateStr, clockIn, clockOut) {
   return { adjustedIn, adjustedOut };
 }
 
+// 出勤・退勤それぞれ最大1時間まで、残業として計算する(1日最大2時間)
+function getOvertimeMinutes(dateStr, clockIn, clockOut, workStart, workEnd) {
+  if (!clockIn || !clockOut) return 0;
+
+  const startStr = workStart || '07:00';
+  const endStr = workEnd || '17:00';
+  const scheduledStart = new Date(dateStr + 'T' + startStr + ':00+09:00');
+  const scheduledEnd = new Date(dateStr + 'T' + endStr + ':00+09:00');
+
+  const actualIn = new Date(clockIn);
+  const actualOut = new Date(clockOut);
+
+  const earlyMinutes = Math.max(0, Math.round((scheduledStart - actualIn) / 60000));
+  const lateMinutes = Math.max(0, Math.round((actualOut - scheduledEnd) / 60000));
+
+  return Math.min(earlyMinutes, 60) + Math.min(lateMinutes, 60);
+}
+
 async function loadHistory() {
   const monthStr = String(viewMonth).padStart(2, '0');
   document.getElementById('month-label').textContent = `${viewYear}年${viewMonth}月`;
@@ -130,7 +148,7 @@ async function loadHistory() {
 
   const { data: records, error } = await supabaseClient
     .from('time_records')
-    .select('*, sites(name), correction_requests(status)')
+    .select('*, sites(name, work_start, work_end), correction_requests(status)')
     .eq('employee_id', employee.id)
     .gte('date', startDate)
     .lte('date', endDate)
@@ -142,8 +160,12 @@ async function loadHistory() {
   const tbody = document.getElementById('history-body');
   if (records.length === 0) {
     tbody.innerHTML = '<tr><td colspan="6">記録がありません</td></tr>';
+    document.getElementById('overtime-summary').textContent = '';
     return;
   }
+
+  let totalOvertimeMinutes = 0;
+
   tbody.innerHTML = records.map(r => {
     const inTime = r.clock_in ? new Date(r.clock_in).toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : '-';
     const outTime = r.clock_out ? new Date(r.clock_out).toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : '-';
@@ -155,6 +177,10 @@ async function loadHistory() {
       const hours = Math.floor(diffMs / 3600000);
       const mins = Math.round((diffMs % 3600000) / 60000);
       workTime = hours + '時間' + mins + '分';
+
+      const workStart = r.sites ? r.sites.work_start : null;
+      const workEnd = r.sites ? r.sites.work_end : null;
+      totalOvertimeMinutes += getOvertimeMinutes(r.date, r.clock_in, r.clock_out, workStart, workEnd);
     }
     const siteName = r.sites ? r.sites.name : '-';
 
@@ -168,6 +194,10 @@ async function loadHistory() {
 
     return `<tr><td>${r.date}</td><td>${siteName}</td><td>${inTime}</td><td>${outTime}</td><td>${workTime}</td><td>${actionCell}</td></tr>`;
   }).join('');
+
+  const overtimeHours = Math.floor(totalOvertimeMinutes / 60);
+  const overtimeMins = totalOvertimeMinutes % 60;
+  document.getElementById('overtime-summary').textContent = `今月の残業:${overtimeHours}時間${overtimeMins}分`;
 }
 
 function openModal(recordId) {
