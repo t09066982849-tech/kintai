@@ -239,9 +239,28 @@ async function advanceStage(request, approverId, isSkip) {
 
   if (data.status === 'approved') {
     await reflectToSchedule(data);
+    if (data.type === 'paid_leave') {
+      await deductPaidLeaveBalance(data.employee_id, data.days);
+    }
   }
 
   return data;
+}
+
+async function deductPaidLeaveBalance(employeeId, days) {
+  const { data: emp } = await supabaseClient
+    .from('employees')
+    .select('paid_leave_balance')
+    .eq('id', employeeId)
+    .single();
+
+  if (!emp) return;
+
+  const newBalance = Number(emp.paid_leave_balance) - Number(days);
+  await supabaseClient
+    .from('employees')
+    .update({ paid_leave_balance: newBalance })
+    .eq('id', employeeId);
 }
 
 async function reflectToSchedule(request) {
