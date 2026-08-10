@@ -197,7 +197,7 @@ async function loadHistory() {
 
   const overtimeHours = Math.floor(totalOvertimeMinutes / 60);
   const overtimeMins = totalOvertimeMinutes % 60;
-  document.getElementById('overtime-summary').innerHTML = `今月の残業:<span style="color:#dc2626">${overtimeHours}時間${overtimeMins}分</span>`;
+  document.getElementById('overtime-summary').innerHTML = `今月の残業:<span style="color:#dc2626">${overtimeHours}</span>時間<span style="color:#dc2626">${overtimeMins}</span>分`;
 }
 
 function openModal(recordId) {
