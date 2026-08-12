@@ -75,10 +75,11 @@
     <h3>打刻記録の追加申請</h3>
     <p id="missing-modal-date"></p>
     <label>現場</label>
-    <select id="missing-site-select" onchange="validateMissingClockIn()"></select>
+    <select id="missing-site-select" onchange="validateMissingTimes()"></select>
     <label>出勤時刻</label>
-    <input type="time" id="missing-clock-in" onchange="validateMissingClockIn()">
-    <p style="font-size:13px; color:#6b7280;">退勤時刻は未入力のまま申請されます(承認後、通常通り退勤ボタンで打刻してください)。</p>
+    <input type="time" id="missing-clock-in" onchange="validateMissingTimes()">
+    <label>退勤時刻(任意・空欄でも申請できます)</label>
+    <input type="time" id="missing-clock-out" onchange="validateMissingTimes()">
     <button onclick="submitMissingRequest()">申請する</button>
     <button style="background:#9ca3af" onclick="closeMissingModal()">キャンセル</button>
   </div>
