@@ -132,8 +132,53 @@ async function loadHistory() {
   if (error) { console.error(error); return; }
   currentRecords = records;
 
+  const { data: schedules } = await supabaseClient
+    .from('schedules')
+    .select('date, end_date, type')
+    .eq('employee_id', employee.id)
+    .lte('date', endDate)
+    .or(`end_date.gte.${startDate},end_date.is.null`)
+    .in('type', ['paid_leave', 'business_trip']);
+
+  const { data: holidays } = await supabaseClient
+    .from('holidays')
+    .select('date')
+    .gte('date', startDate)
+    .lte('date', endDate);
+  const holidaySet = new Set((holidays || []).map(h => h.date));
+
+  const { data: missingRequests } = await supabaseClient
+    .from('missing_record_requests')
+    .select('date, status')
+    .eq('employee_id', employee.id)
+    .gte('date', startDate)
+    .lte('date', endDate);
+  const missingStatusByDate = {};
+  (missingRequests || []).forEach(m => { missingStatusByDate[m.date] = m.status; });
+
+  const existingDates = new Set(records.map(r => r.date));
+  const todayStr = getJSTDateStr();
+  const cutoff = endDate < todayStr ? endDate : todayStr;
+
+  const missingDates = [];
+  if (startDate <= cutoff) {
+    for (let d = new Date(startDate + 'T00:00:00'); d.toISOString().slice(0,10) <= cutoff; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().slice(0, 10);
+      const weekday = d.getDay();
+      if (weekday === 0 || weekday === 6) continue;
+      if (holidaySet.has(dateStr)) continue;
+      if (existingDates.has(dateStr)) continue;
+      const excludedBySchedule = (schedules || []).some(s => {
+        const sEnd = s.end_date || s.date;
+        return s.date <= dateStr && sEnd >= dateStr;
+      });
+      if (excludedBySchedule) continue;
+      missingDates.push(dateStr);
+    }
+  }
+
   const tbody = document.getElementById('history-body');
-  if (records.length === 0) {
+  if (records.length === 0 && missingDates.length === 0) {
     tbody.innerHTML = '<tr><td colspan="6">記録がありません</td></tr>';
     document.getElementById('overtime-summary').innerHTML = '';
     return;
@@ -141,7 +186,7 @@ async function loadHistory() {
 
   let totalOvertimeMinutes = 0;
 
-  tbody.innerHTML = records.map(r => {
+  const existingRows = records.map(r => {
     const workStart = r.sites ? r.sites.work_start : null;
     const workEnd = r.sites ? r.sites.work_end : null;
     const metrics = computeDayMetrics(r.date, r.clock_in, r.clock_out, workStart, workEnd);
@@ -162,12 +207,77 @@ async function loadHistory() {
       actionCell = `<span class="${classMap[latest.status]}">${labelMap[latest.status]}</span>`;
     }
 
-    return `<tr><td>${r.date}</td><td>${siteName}</td><td>${inTime}</td><td>${outTime}</td><td>${workTime}</td><td>${actionCell}</td></tr>`;
-  }).join('');
+    return { date: r.date, html: `<tr><td>${r.date}</td><td>${siteName}</td><td>${inTime}</td><td>${outTime}</td><td>${workTime}</td><td>${actionCell}</td></tr>` };
+  });
+
+  const missingRows = missingDates.map(dateStr => {
+    const status = missingStatusByDate[dateStr];
+    let actionCell;
+    if (status === 'pending') {
+      actionCell = `<span class="status-pending">申請中</span>`;
+    } else {
+      actionCell = `<button class="small" onclick="openMissingModal('${dateStr}')">記録を追加申請</button>`;
+    }
+    return { date: dateStr, html: `<tr><td>${dateStr}</td><td>-</td><td>-</td><td>-</td><td>記録なし</td><td>${actionCell}</td></tr>` };
+  });
+
+  const allRows = existingRows.concat(missingRows).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  tbody.innerHTML = allRows.map(r => r.html).join('');
 
   const overtimeHours = Math.floor(totalOvertimeMinutes / 60);
   const overtimeMins = totalOvertimeMinutes % 60;
   document.getElementById('overtime-summary').innerHTML = `今月の残業:<span style="color:#dc2626">${overtimeHours}</span>時間<span style="color:#dc2626">${overtimeMins}</span>分`;
+}
+
+function openMissingModal(dateStr) {
+  document.getElementById('missing-modal-date').textContent = dateStr;
+  document.getElementById('missing-modal-bg').dataset.date = dateStr;
+
+  const select = document.getElementById('missing-site-select');
+  select.innerHTML = allSites.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+
+  document.getElementById('missing-clock-in').value = '';
+  document.getElementById('missing-modal-bg').style.display = 'flex';
+}
+
+function closeMissingModal() {
+  document.getElementById('missing-modal-bg').style.display = 'none';
+}
+
+function validateMissingClockIn() {
+  const siteId = document.getElementById('missing-site-select').value;
+  const site = allSites.find(s => String(s.id) === String(siteId));
+  const startStr = (site ? site.work_start : null) || '07:00';
+  const startShort = startStr.slice(0, 5);
+
+  const inInput = document.getElementById('missing-clock-in');
+  if (inInput.value && inInput.value < startShort) {
+    alert(`申請では早出は認められません。出勤時刻を所定時刻(${startShort})に修正します。`);
+    inInput.value = startShort;
+  }
+}
+
+async function submitMissingRequest() {
+  if (!(await ensureSession())) return;
+
+  validateMissingClockIn();
+
+  const dateStr = document.getElementById('missing-modal-bg').dataset.date;
+  const siteId = document.getElementById('missing-site-select').value;
+  const clockIn = document.getElementById('missing-clock-in').value;
+
+  if (!clockIn) { alert('出勤時刻を入力してください'); return; }
+
+  const { error } = await supabaseClient.from('missing_record_requests').insert({
+    employee_id: employee.id,
+    date: dateStr,
+    site_id: siteId,
+    requested_clock_in: clockIn + ':00'
+  });
+
+  if (error) { alert('エラー: ' + error.message); return; }
+  closeMissingModal();
+  loadHistory();
 }
 
 function openModal(recordId) {
