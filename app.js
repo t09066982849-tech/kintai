@@ -237,6 +237,7 @@ function openMissingModal(dateStr) {
   select.innerHTML = allSites.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
 
   document.getElementById('missing-clock-in').value = '';
+  document.getElementById('missing-clock-out').value = '';
   document.getElementById('missing-modal-bg').style.display = 'flex';
 }
 
@@ -244,27 +245,34 @@ function closeMissingModal() {
   document.getElementById('missing-modal-bg').style.display = 'none';
 }
 
-function validateMissingClockIn() {
+function validateMissingTimes() {
   const siteId = document.getElementById('missing-site-select').value;
   const site = allSites.find(s => String(s.id) === String(siteId));
-  const startStr = (site ? site.work_start : null) || '07:00';
-  const startShort = startStr.slice(0, 5);
+  const startShort = ((site ? site.work_start : null) || '07:00').slice(0, 5);
+  const endShort = ((site ? site.work_end : null) || '17:00').slice(0, 5);
 
   const inInput = document.getElementById('missing-clock-in');
+  const outInput = document.getElementById('missing-clock-out');
+
   if (inInput.value && inInput.value < startShort) {
     alert(`申請では早出は認められません。出勤時刻を所定時刻(${startShort})に修正します。`);
     inInput.value = startShort;
+  }
+  if (outInput.value && outInput.value > endShort) {
+    alert(`申請では残業は認められません。退勤時刻を所定時刻(${endShort})に修正します。`);
+    outInput.value = endShort;
   }
 }
 
 async function submitMissingRequest() {
   if (!(await ensureSession())) return;
 
-  validateMissingClockIn();
+  validateMissingTimes();
 
   const dateStr = document.getElementById('missing-modal-bg').dataset.date;
   const siteId = document.getElementById('missing-site-select').value;
   const clockIn = document.getElementById('missing-clock-in').value;
+  const clockOut = document.getElementById('missing-clock-out').value;
 
   if (!clockIn) { alert('出勤時刻を入力してください'); return; }
 
@@ -272,7 +280,8 @@ async function submitMissingRequest() {
     employee_id: employee.id,
     date: dateStr,
     site_id: siteId,
-    requested_clock_in: clockIn + ':00'
+    requested_clock_in: clockIn + ':00',
+    requested_clock_out: clockOut ? clockOut + ':00' : null
   });
 
   if (error) { alert('エラー: ' + error.message); return; }
