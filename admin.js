@@ -233,7 +233,7 @@ async function loadMissingRequests() {
 
   const tbody = document.getElementById('missing-requests-body');
   if (items.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5">申請中の項目はありません</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6">申請中の項目はありません</td></tr>';
     return;
   }
 
@@ -243,6 +243,7 @@ async function loadMissingRequests() {
       <td>${i.date}</td>
       <td>${i.sites ? i.sites.name : ''}</td>
       <td>${i.requested_clock_in ? i.requested_clock_in.slice(0,5) : ''}</td>
+      <td>${i.requested_clock_out ? i.requested_clock_out.slice(0,5) : '-'}</td>
       <td>
         <button class="small" onclick="approveMissingRequest(${i.id})">承認</button>
         <button class="small" style="background:#9ca3af" onclick="rejectMissingRequest(${i.id})">却下</button>
@@ -260,12 +261,14 @@ async function approveMissingRequest(id) {
   if (fetchError) { alert('エラー: ' + fetchError.message); return; }
 
   const clockInIso = `${req.date}T${req.requested_clock_in}+09:00`;
+  const clockOutIso = req.requested_clock_out ? `${req.date}T${req.requested_clock_out}+09:00` : null;
 
   const { error: insertError } = await supabaseClient.from('time_records').insert({
     employee_id: req.employee_id,
     date: req.date,
     site_id: req.site_id,
-    clock_in: clockInIso
+    clock_in: clockInIso,
+    clock_out: clockOutIso
   });
   if (insertError) { alert('エラー: ' + insertError.message); return; }
 
