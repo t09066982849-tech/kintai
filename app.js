@@ -206,6 +206,9 @@ async function loadHistory() {
       const labelMap = { pending: '申請中', approved: '承認済', rejected: '却下' };
       const classMap = { pending: 'status-pending', approved: 'status-approved', rejected: 'status-rejected' };
       actionCell = `<span class="${classMap[latest.status]}">${labelMap[latest.status]}</span>`;
+      if (latest.status === 'rejected') {
+        actionCell += ` <button class="small" onclick="openModal(${r.id})">再申請</button>`;
+      }
     }
 
     return { date: r.date, html: `<tr><td>${r.date}</td><td>${siteName}</td><td>${inTime}</td><td>${outTime}</td><td>${workTime}</td><td>${actionCell}</td></tr>` };
