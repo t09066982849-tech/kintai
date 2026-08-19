@@ -340,6 +340,11 @@ async function submitCorrection() {
   const outVal = document.getElementById('req-clock-out').value;
   const siteId = document.getElementById('req-site-select').value;
 
+  if (!inVal || !outVal) {
+    alert('出勤時刻・退勤時刻の両方を入力してください');
+    return;
+  }
+
   const requestedIn = inVal ? `${modalRecord.date}T${inVal}:00+09:00` : null;
   const requestedOut = outVal ? `${modalRecord.date}T${outVal}:00+09:00` : null;
 
