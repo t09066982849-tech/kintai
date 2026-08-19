@@ -225,7 +225,7 @@ async function deleteLeaveRequestAdmin(id) {
 async function loadMissingRequests() {
   const { data: items, error } = await supabaseClient
     .from('missing_record_requests')
-    .select('*, employees(name), sites(name)')
+    .select('*, employees!missing_record_requests_employee_id_fkey(name), sites(name)')
     .eq('status', 'pending')
     .order('date', { ascending: true });
 
