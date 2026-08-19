@@ -251,29 +251,8 @@ function closeMissingModal() {
   document.getElementById('missing-modal-bg').style.display = 'none';
 }
 
-function validateMissingTimes() {
-  const siteId = document.getElementById('missing-site-select').value;
-  const site = allSites.find(s => String(s.id) === String(siteId));
-  const startShort = ((site ? site.work_start : null) || '07:00').slice(0, 5);
-  const endShort = ((site ? site.work_end : null) || '17:00').slice(0, 5);
-
-  const inInput = document.getElementById('missing-clock-in');
-  const outInput = document.getElementById('missing-clock-out');
-
-  if (inInput.value && inInput.value < startShort) {
-    alert(`申請では早出は認められません。出勤時刻を所定時刻(${startShort})に修正します。`);
-    inInput.value = startShort;
-  }
-  if (outInput.value && outInput.value > endShort) {
-    alert(`申請では残業は認められません。退勤時刻を所定時刻(${endShort})に修正します。`);
-    outInput.value = endShort;
-  }
-}
-
 async function submitMissingRequest() {
   if (!(await ensureSession())) return;
-
-  validateMissingTimes();
 
   const dateStr = document.getElementById('missing-modal-bg').dataset.date;
   const siteId = document.getElementById('missing-site-select').value;
@@ -320,40 +299,8 @@ function closeModal() {
   document.getElementById('modal-bg').style.display = 'none';
 }
 
-// 修正申請は位置情報がなく早出・残業の証跡にならないため、所定時間を超える「新たな」入力は
-// 所定時刻ちょうどに自動修正する。ただし、本人が触っていない(元の実打刻のままの)値には適用しない
-// (遅刻・早上がりはそのまま自由に入力できる)。
-function validateCorrectionTimes() {
-  if (!modalRecord) return;
-
-  const siteId = document.getElementById('req-site-select').value;
-  const site = allSites.find(s => String(s.id) === String(siteId));
-  const workStart = site ? site.work_start : null;
-  const workEnd = site ? site.work_end : null;
-  const startStr = (workStart || '07:00').slice(0, 5);
-  const endStr = (workEnd || '17:00').slice(0, 5);
-
-  const modalBg = document.getElementById('modal-bg');
-  const originalIn = modalBg.dataset.originalIn || '';
-  const originalOut = modalBg.dataset.originalOut || '';
-
-  const inInput = document.getElementById('req-clock-in');
-  const outInput = document.getElementById('req-clock-out');
-
-  if (inInput.value && inInput.value !== originalIn && inInput.value < startStr) {
-    alert(`修正申請では早出は認められません。出勤時刻を所定時刻(${startStr})に修正します。`);
-    inInput.value = startStr;
-  }
-  if (outInput.value && outInput.value !== originalOut && outInput.value > endStr) {
-    alert(`修正申請では残業は認められません。退勤時刻を所定時刻(${endStr})に修正します。`);
-    outInput.value = endStr;
-  }
-}
-
 async function submitCorrection() {
   if (!(await ensureSession())) return;
-
-  validateCorrectionTimes();
 
   const inVal = document.getElementById('req-clock-in').value;
   const outVal = document.getElementById('req-clock-out').value;
