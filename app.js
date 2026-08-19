@@ -303,17 +303,26 @@ function openModal(recordId) {
   reqSiteSelect.innerHTML = allSites.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
   if (modalRecord.site_id) reqSiteSelect.value = modalRecord.site_id;
 
-  document.getElementById('req-clock-in').value = modalRecord.clock_in ? new Date(modalRecord.clock_in).toTimeString().slice(0,5) : '';
-  document.getElementById('req-clock-out').value = modalRecord.clock_out ? new Date(modalRecord.clock_out).toTimeString().slice(0,5) : '';
-  document.getElementById('modal-bg').style.display = 'flex';
+  const originalIn = modalRecord.clock_in ? new Date(modalRecord.clock_in).toTimeString().slice(0,5) : '';
+  const originalOut = modalRecord.clock_out ? new Date(modalRecord.clock_out).toTimeString().slice(0,5) : '';
+
+  document.getElementById('req-clock-in').value = originalIn;
+  document.getElementById('req-clock-out').value = originalOut;
+
+  const modalBg = document.getElementById('modal-bg');
+  modalBg.dataset.originalIn = originalIn;
+  modalBg.dataset.originalOut = originalOut;
+
+  modalBg.style.display = 'flex';
 }
 
 function closeModal() {
   document.getElementById('modal-bg').style.display = 'none';
 }
 
-// 修正申請は位置情報がなく早出・残業の証跡にならないため、所定時間を超える入力は
-// 所定時刻ちょうどに自動修正する(遅刻・早上がりはそのまま自由に入力できる)。
+// 修正申請は位置情報がなく早出・残業の証跡にならないため、所定時間を超える「新たな」入力は
+// 所定時刻ちょうどに自動修正する。ただし、本人が触っていない(元の実打刻のままの)値には適用しない
+// (遅刻・早上がりはそのまま自由に入力できる)。
 function validateCorrectionTimes() {
   if (!modalRecord) return;
 
@@ -324,14 +333,18 @@ function validateCorrectionTimes() {
   const startStr = (workStart || '07:00').slice(0, 5);
   const endStr = (workEnd || '17:00').slice(0, 5);
 
+  const modalBg = document.getElementById('modal-bg');
+  const originalIn = modalBg.dataset.originalIn || '';
+  const originalOut = modalBg.dataset.originalOut || '';
+
   const inInput = document.getElementById('req-clock-in');
   const outInput = document.getElementById('req-clock-out');
 
-  if (inInput.value && inInput.value < startStr) {
+  if (inInput.value && inInput.value !== originalIn && inInput.value < startStr) {
     alert(`修正申請では早出は認められません。出勤時刻を所定時刻(${startStr})に修正します。`);
     inInput.value = startStr;
   }
-  if (outInput.value && outInput.value > endStr) {
+  if (outInput.value && outInput.value !== originalOut && outInput.value > endStr) {
     alert(`修正申請では残業は認められません。退勤時刻を所定時刻(${endStr})に修正します。`);
     outInput.value = endStr;
   }
