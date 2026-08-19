@@ -60,11 +60,11 @@
     <h3>打刻修正申請</h3>
     <p id="modal-date"></p>
     <label>現場</label>
-    <select id="req-site-select" onchange="validateCorrectionTimes()"></select>
+    <select id="req-site-select"></select>
     <label>出勤時刻</label>
-    <input type="time" id="req-clock-in" onchange="validateCorrectionTimes()">
+    <input type="time" id="req-clock-in">
     <label>退勤時刻</label>
-    <input type="time" id="req-clock-out" onchange="validateCorrectionTimes()">
+    <input type="time" id="req-clock-out">
     <button onclick="submitCorrection()">申請する</button>
     <button style="background:#9ca3af" onclick="closeModal()">キャンセル</button>
   </div>
@@ -75,11 +75,11 @@
     <h3>打刻記録の追加申請</h3>
     <p id="missing-modal-date"></p>
     <label>現場</label>
-    <select id="missing-site-select" onchange="validateMissingTimes()"></select>
+    <select id="missing-site-select"></select>
     <label>出勤時刻</label>
-    <input type="time" id="missing-clock-in" onchange="validateMissingTimes()">
+    <input type="time" id="missing-clock-in">
     <label>退勤時刻(任意・空欄でも申請できます)</label>
-    <input type="time" id="missing-clock-out" onchange="validateMissingTimes()">
+    <input type="time" id="missing-clock-out">
     <button onclick="submitMissingRequest()">申請する</button>
     <button style="background:#9ca3af" onclick="closeMissingModal()">キャンセル</button>
   </div>
