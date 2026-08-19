@@ -152,7 +152,8 @@ async function loadHistory() {
     .select('date, status')
     .eq('employee_id', employee.id)
     .gte('date', startDate)
-    .lte('date', endDate);
+    .lte('date', endDate)
+    .order('created_at', { ascending: true });
   const missingStatusByDate = {};
   (missingRequests || []).forEach(m => { missingStatusByDate[m.date] = m.status; });
 
@@ -215,6 +216,8 @@ async function loadHistory() {
     let actionCell;
     if (status === 'pending') {
       actionCell = `<span class="status-pending">申請中</span>`;
+    } else if (status === 'rejected') {
+      actionCell = `<span class="status-rejected">却下</span> <button class="small" onclick="openMissingModal('${dateStr}')">再申請</button>`;
     } else {
       actionCell = `<button class="small" onclick="openMissingModal('${dateStr}')">記録を追加申請</button>`;
     }
