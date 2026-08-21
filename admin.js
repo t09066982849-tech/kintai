@@ -290,4 +290,40 @@ async function rejectMissingRequest(id) {
   loadMissingRequests();
 }
 
+async function createEmployee() {
+  const name = document.getElementById('new-emp-name').value.trim();
+  const email = document.getElementById('new-emp-email').value.trim();
+  const password = document.getElementById('new-emp-password').value;
+  const department = document.getElementById('new-emp-department').value;
+  const msg = document.getElementById('create-emp-message');
+
+  if (!name || !email || !password) {
+    msg.style.color = 'red';
+    msg.textContent = '氏名・メールアドレス・パスワードは必須です';
+    return;
+  }
+
+  msg.style.color = 'black';
+  msg.textContent = '登録中...';
+
+  const { data: { session } } = await supabaseClient.auth.getSession();
+
+  const { data, error } = await supabaseClient.functions.invoke('create-employee', {
+    body: { name, email, password, department },
+    headers: { Authorization: `Bearer ${session.access_token}` }
+  });
+
+  if (error || (data && data.error)) {
+    msg.style.color = 'red';
+    msg.textContent = 'エラー: ' + (data?.error || error.message);
+    return;
+  }
+
+  msg.style.color = 'green';
+  msg.textContent = `${name}さんを登録しました(${email})`;
+  document.getElementById('new-emp-name').value = '';
+  document.getElementById('new-emp-email').value = '';
+  document.getElementById('new-emp-password').value = '';
+}
+
 init();
