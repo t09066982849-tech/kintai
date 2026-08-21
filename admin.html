@@ -57,6 +57,21 @@
     <thead><tr><th>現場名</th><th>操作</th></tr></thead>
     <tbody id="sites-body"></tbody>
   </table>
+
+  <h3>新規従業員登録</h3>
+  <label>氏名</label>
+  <input id="new-emp-name" placeholder="例:山田 太郎">
+  <label>メールアドレス</label>
+  <input id="new-emp-email" type="email" placeholder="例:yamada@izukura.co.jp">
+  <label>初期パスワード</label>
+  <input id="new-emp-password" type="text" placeholder="本人に伝えるパスワード">
+  <label>部署</label>
+  <select id="new-emp-department">
+    <option value="civil">土木部</option>
+    <option value="accounting">経理部</option>
+  </select>
+  <button onclick="createEmployee()">登録する</button>
+  <p id="create-emp-message"></p>
 </div>
 
 <script src="common.js"></script> 
