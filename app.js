@@ -140,12 +140,24 @@ async function loadHistory() {
     .or(`end_date.gte.${startDate},end_date.is.null`)
     .in('type', ['paid_leave', 'business_trip']);
 
-  const { data: holidays } = await supabaseClient
-    .from('holidays')
-    .select('date')
-    .gte('date', startDate)
-    .lte('date', endDate);
-  const holidaySet = new Set((holidays || []).map(h => h.date));
+  const isAccounting = employee.department === 'accounting';
+  let holidaySet = new Set();
+  let companyHolidayRanges = [];
+  if (isAccounting) {
+    const { data: holidays } = await supabaseClient
+      .from('holidays')
+      .select('date')
+      .gte('date', startDate)
+      .lte('date', endDate);
+    holidaySet = new Set((holidays || []).map(h => h.date));
+  } else {
+    const { data: companyHolidays } = await supabaseClient
+      .from('company_holidays')
+      .select('start_date, end_date')
+      .lte('start_date', endDate)
+      .gte('end_date', startDate);
+    companyHolidayRanges = companyHolidays || [];
+  }
 
   const { data: missingRequests } = await supabaseClient
     .from('missing_record_requests')
@@ -167,7 +179,12 @@ async function loadHistory() {
       const dateStr = d.toISOString().slice(0, 10);
       const weekday = d.getUTCDay();
       if (weekday === 0 || weekday === 6) continue;
-      if (holidaySet.has(dateStr)) continue;
+      if (isAccounting) {
+        if (holidaySet.has(dateStr)) continue;
+      } else {
+        const inCompanyHoliday = companyHolidayRanges.some(ch => ch.start_date <= dateStr && ch.end_date >= dateStr);
+        if (inCompanyHoliday) continue;
+      }
       if (existingDates.has(dateStr)) continue;
       const excludedBySchedule = (schedules || []).some(s => {
         const sEnd = s.end_date || s.date;
