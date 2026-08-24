@@ -163,9 +163,9 @@ async function loadHistory() {
 
   const missingDates = [];
   if (startDate <= cutoff) {
-    for (let d = new Date(startDate + 'T00:00:00'); d.toISOString().slice(0,10) <= cutoff; d.setDate(d.getDate() + 1)) {
+    for (let d = new Date(startDate + 'T00:00:00Z'); d.toISOString().slice(0,10) <= cutoff; d.setUTCDate(d.getUTCDate() + 1)) {
       const dateStr = d.toISOString().slice(0, 10);
-      const weekday = d.getDay();
+      const weekday = d.getUTCDay();
       if (weekday === 0 || weekday === 6) continue;
       if (holidaySet.has(dateStr)) continue;
       if (existingDates.has(dateStr)) continue;
