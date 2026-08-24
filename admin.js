@@ -47,15 +47,34 @@ async function loadRequests() {
       <td>${r.time_records.sites ? r.time_records.sites.name : '-'}</td>
       <td>${fmtTime(r.time_records.clock_in)}</td>
       <td>${fmtTime(r.time_records.clock_out)}</td>
+      ${r.is_deletion ? `
+      <td colspan="3" style="color:#dc2626">削除希望</td>
+      ` : `
       <td>${r.requested_site ? r.requested_site.name : '-'}</td>
       <td>${fmtTime(r.requested_clock_in)}</td>
       <td>${fmtTime(r.requested_clock_out)}</td>
+      `}
       <td>
-        <button class="small" onclick="approve(${r.id}, ${r.time_record_id}, '${r.requested_clock_in || ''}', '${r.requested_clock_out || ''}', ${r.requested_site_id || 'null'})">承認</button>
+        ${r.is_deletion
+          ? `<button class="small" style="background:#dc2626" onclick="approveDeletion(${r.id}, ${r.time_record_id})">承認(削除)</button>`
+          : `<button class="small" onclick="approve(${r.id}, ${r.time_record_id}, '${r.requested_clock_in || ''}', '${r.requested_clock_out || ''}', ${r.requested_site_id || 'null'})">承認</button>`
+        }
         <button class="small" style="background:#9ca3af" onclick="reject(${r.id})">却下</button>
       </td>
     </tr>
   `).join('');
+}
+
+async function approveDeletion(requestId, timeRecordId) {
+  if (!confirm('この打刻記録を完全に削除します。よろしいですか？')) return;
+
+  const { error: e1 } = await supabaseClient.from('correction_requests').delete().eq('id', requestId);
+  if (e1) { alert('エラー: ' + e1.message); return; }
+
+  const { error: e2 } = await supabaseClient.from('time_records').delete().eq('id', timeRecordId);
+  if (e2) { alert('エラー: ' + e2.message); return; }
+
+  loadRequests();
 }
 
 async function approve(requestId, timeRecordId, requestedIn, requestedOut, requestedSiteId) {

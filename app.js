@@ -327,6 +327,22 @@ async function submitCorrection() {
   loadHistory();
 }
 
+async function submitDeletionRequest() {
+  if (!(await ensureSession())) return;
+
+  if (!confirm('この日の打刻記録を削除してほしいと申請します。よろしいですか？')) return;
+
+  const { error } = await supabaseClient.from('correction_requests').insert({
+    time_record_id: modalRecord.id,
+    employee_id: employee.id,
+    is_deletion: true
+  });
+
+  if (error) { alert('エラー: ' + error.message); return; }
+  closeModal();
+  loadHistory();
+}
+
 function getPosition() {
   return new Promise((resolve) => {
     if (!navigator.geolocation) { resolve(null); return; }
