@@ -25,7 +25,7 @@
 
 ## データベース(Supabase)テーブル
 
-- `employees`:従業員マスタ。`is_admin`、`department`(civil/accounting)、`role`(president/director/manager_civil/manager_accounting/null)、`travel_rate_group_id`、`paid_leave_balance`(残り有給日数、2026-08-24に全従業員分の実残日数を反映済み)、`hire_date`(入社日、有給自動付与の起算日)、`last_paid_leave_grant_date`(直近の有給付与処理日、`grant-paid-leave`の二重付与防止用)
+- `employees`:従業員マスタ。`is_admin`、`department`(civil/accounting)、`role`(president/director/manager_civil/manager_accounting/null)、`travel_rate_group_id`、`paid_leave_balance`(残り有給日数、2026-08-24に全従業員分の実残日数を反映済み)、`hire_date`(入社日、有給自動付与の起算日)、`last_paid_leave_grant_date`(直近の有給付与処理日、`grant-paid-leave`の二重付与防止用)、`is_active`(退職者の無効化用。falseだとログイン不可になるが打刻・申請履歴は残る)
 - `sites`:現場マスタ。`work_start`/`work_end`(所定時間、事務所は8:30-17:30、その他は7:00-17:00がデフォルト。残業・補正計算に使用)
 - `time_records`:打刻記録。実時刻のみ保存(計算型)。出退勤GPS付き。**実時刻は画面・Excel・管理者にも一切表示しない**(証跡として裏に保持するのみ)。表示・出力は必ず`common.js`の`computeDayMetrics`で補正した値を使う
 - `correction_requests`:既存の打刻記録の時刻+現場を直す申請、または記録自体の削除を申請(`is_deletion`、2026-08-24追加)。管理者が承認/却下。時刻修正の場合は出退勤どちらも入力必須(2026-08-19、片方のみでの申請を禁止)。**みなし残業制のため、早出・残業を含む時刻もそのまま申請できる(自動丸めは行わない、2026-08-19に撤廃)**。削除申請が承認されると`time_records`本体が削除される。却下された場合は「却下」表示の横に再申請ボタンが出る
@@ -95,6 +95,7 @@
 - 有給の自動減算(承認完了時に`employees.paid_leave_balance`から差し引き)、残り有給日数の画面表示(赤文字)
 - 有給の自動付与(労基法の一般基準、`hire_date`基準で毎日cron判定、上限40日、2026-08-24実装。`grant-paid-leave`参照)
 - 管理者画面から新規従業員を登録できる機能(氏名・メール・パスワード・部署を入力するだけで、ログインアカウント作成+employees登録がまとめて完了する)
+- 管理者画面から従業員を無効化(退職処理)できる機能。`employees.is_active`をfalseにするとログイン不可になるが、打刻・申請履歴などのデータは一切消えない。一覧から有効化に戻すことも可能(2026-08-24実装)
 
 ## 残タスク
 
@@ -166,6 +167,7 @@ where email = 'admin@izukura.co.jp';
 - **2026-08-24**:有給休暇の自動付与機能を実装。`employees`に`hire_date`・`last_paid_leave_grant_date`を追加し、`grant-paid-leave`Edge Function(毎日12時cron)で労基法一般基準(6ヶ月10日〜6.5年以降20日、上限40日)に基づき自動付与するようにした。あわせて共有サーバーのExcel(個人別年次有給休暇管理簿)から全従業員分の入社日・実残日数を洗い出してDBに反映。反映作業中に、勝野さん・川股さんが`employees`テーブルに登録されていないことが判明し(原因判明:最初の一括登録に使った名簿にこの2人が最初から入っていなかった、単純な漏れ)、admin.htmlの新規従業員登録機能で追加して対応した。
 - **2026-08-24(続き)**:2件の不具合を修正。①`app.js`の`loadHistory`で、打刻漏れ候補日を計算するループが、ローカル時刻の`Date`オブジェクトで曜日判定しつつ`toISOString()`(UTC変換)で日付文字列を作っていたため1日ズレが発生し、日曜日が誤って打刻漏れ候補に表示され金曜日が誤って除外されていた→ループをUTC基準(`setUTCDate`/`getUTCDay`)に統一して修正。②打刻記録を取り消す手段が無かったため`correction_requests`に`is_deletion`列を追加し削除申請機能を実装したが、(a)`time_records`・`correction_requests`に管理者向けのDELETE用RLSポリシーが無く承認してもエラーなく何も削除されない、(b)`correction_requests_time_record_id_fkey`が同じ`time_record_id`を参照する他の申請行(却下済みなど)を残したまま`time_records`を消そうとして外部キー違反になる、の2つが発覚→ DELETEポリシーを追加(`employees.auth_user_id = auth.uid()`で判定、`employees.id`はbigintであり`auth.uid()`のuuidと直接比較できない点に注意)、外部キー制約を`on delete cascade`に変更して対応。
 - **2026-08-24(続き2)**:`app.js`の`loadHistory`(自分の打刻漏れ判定)が、部署に関係なく全国の祝日を一律除外していたことが判明。方針上は土木部が祝日(大型連休以外)でも稼働することがあるため、祝日に打刻を忘れても警告されない不整合だった→`check-missing-punches`と同じ判定ロジックに揃え、経理部は`holidays`、土木部は`company_holidays`の期間のみを除外するよう修正。
+- **2026-08-24(続き3)**:管理画面に従業員の新規登録機能はあったが削除・無効化の手段が無かったため、`employees.is_active`(既存列)を使った無効化機能を追加。無効化するとログイン時に強制ログアウトされるが、打刻・申請履歴などのデータは一切消えない。あわせて、管理者が他人のemployees行を更新できるRLSポリシー(`employees_update_admin`)が必要だったが、確認したところ既に作成済みだった。
 
 ## 秘密情報の所在(値はここに書かない)
 
