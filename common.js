@@ -88,9 +88,8 @@ function computeDayMetrics(dateStr, clockIn, clockOut, workStart, workEnd) {
   let overtimeMinutes = 0;
   if (adjustedIn && adjustedOut) {
     workMinutes = Math.round((adjustedOut - adjustedIn) / 60000);
-    const earlyMinutes = Math.max(0, Math.round((scheduledStart - adjustedIn) / 60000));
-    const lateMinutes = Math.max(0, Math.round((adjustedOut - scheduledEnd) / 60000));
-    overtimeMinutes = earlyMinutes + lateMinutes;
+    const scheduledMinutes = Math.round((scheduledEnd - scheduledStart) / 60000);
+    overtimeMinutes = Math.max(0, workMinutes - scheduledMinutes);
   }
 
   return { adjustedIn, adjustedOut, workMinutes, overtimeMinutes, scheduledStart, scheduledEnd, earlyCap, lateCap };
