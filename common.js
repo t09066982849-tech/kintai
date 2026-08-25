@@ -44,6 +44,13 @@ async function requireEmployee() {
     .eq('auth_user_id', user.id)
     .single();
 
+  if (!emp.is_active) {
+    await supabaseClient.auth.signOut();
+    document.getElementById('login-box').style.display = 'block';
+    document.getElementById('login-error').textContent = 'アカウントが無効化されています。管理者にお問い合わせください。';
+    return null;
+  }
+
   document.getElementById('login-box').style.display = 'none';
   document.getElementById('main-box').style.display = 'block';
   document.getElementById('welcome').textContent = emp.name + ' さん';

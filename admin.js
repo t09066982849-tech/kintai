@@ -19,6 +19,7 @@ async function init() {
   loadSites();
   loadApprovedLeaveRequests();
   loadMissingRequests();
+  loadEmployees();
 }
 
 function fmtTime(t) {
@@ -343,6 +344,43 @@ async function createEmployee() {
   document.getElementById('new-emp-name').value = '';
   document.getElementById('new-emp-email').value = '';
   document.getElementById('new-emp-password').value = '';
+  loadEmployees();
+}
+
+const deptLabel = { civil: '土木部', accounting: '経理部' };
+
+async function loadEmployees() {
+  const { data: employees, error } = await supabaseClient
+    .from('employees')
+    .select('id, name, department, is_active')
+    .eq('is_admin', false)
+    .order('name');
+
+  if (error) { console.error(error); return; }
+
+  const tbody = document.getElementById('employees-body');
+  tbody.innerHTML = employees.map(e => `
+    <tr>
+      <td>${e.name}</td>
+      <td>${deptLabel[e.department] || e.department || '-'}</td>
+      <td>${e.is_active ? '<span class="status-approved">有効</span>' : '<span class="status-rejected">無効</span>'}</td>
+      <td>
+        ${e.is_active
+          ? `<button class="small" style="background:#dc2626" onclick="toggleActive(${e.id}, false)">無効化</button>`
+          : `<button class="small" onclick="toggleActive(${e.id}, true)">有効化</button>`
+        }
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function toggleActive(id, makeActive) {
+  const label = makeActive ? '有効化' : '無効化';
+  if (!confirm(`この従業員を${label}します。よろしいですか？`)) return;
+
+  const { error } = await supabaseClient.from('employees').update({ is_active: makeActive }).eq('id', id);
+  if (error) { alert('エラー: ' + error.message); return; }
+  loadEmployees();
 }
 
 init();
