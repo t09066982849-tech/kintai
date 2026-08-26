@@ -33,7 +33,7 @@ async function init() {
   currentDateStr = getJSTDateStr();
   const { data: record } = await supabaseClient
     .from('time_records')
-    .select('*, sites(work_start, work_end)')
+    .select('*, sites(work_start, work_end, break_minutes)')
     .eq('employee_id', employee.id)
     .eq('date', currentDateStr)
     .maybeSingle();
@@ -68,7 +68,7 @@ async function refreshTodayStatus() {
   currentDateStr = today;
   const { data: record } = await supabaseClient
     .from('time_records')
-    .select('*, sites(work_start, work_end)')
+    .select('*, sites(work_start, work_end, break_minutes)')
     .eq('employee_id', employee.id)
     .eq('date', today)
     .maybeSingle();
@@ -94,14 +94,16 @@ function updateButton() {
     btn.onclick = clockOut;
     const workStart = todayRecord.sites ? todayRecord.sites.work_start : null;
     const workEnd = todayRecord.sites ? todayRecord.sites.work_end : null;
-    const metrics = computeDayMetrics(todayRecord.date, todayRecord.clock_in, null, workStart, workEnd);
+    const workBreak = todayRecord.sites ? todayRecord.sites.break_minutes : null;
+    const metrics = computeDayMetrics(todayRecord.date, todayRecord.clock_in, null, workStart, workEnd, workBreak);
     status.textContent = '出勤時刻: ' + formatTimeJa(metrics.adjustedIn);
   } else {
     siteSelect.disabled = true;
     btn.style.display = 'none';
     const workStart = todayRecord.sites ? todayRecord.sites.work_start : null;
     const workEnd = todayRecord.sites ? todayRecord.sites.work_end : null;
-    const metrics = computeDayMetrics(todayRecord.date, todayRecord.clock_in, todayRecord.clock_out, workStart, workEnd);
+    const workBreak = todayRecord.sites ? todayRecord.sites.break_minutes : null;
+    const metrics = computeDayMetrics(todayRecord.date, todayRecord.clock_in, todayRecord.clock_out, workStart, workEnd, workBreak);
     status.textContent = '本日の勤務は完了しました\n出勤: ' + formatTimeJa(metrics.adjustedIn) + ' / 退勤: ' + formatTimeJa(metrics.adjustedOut);
   }
 }
@@ -123,7 +125,7 @@ async function loadHistory() {
 
   const { data: records, error } = await supabaseClient
     .from('time_records')
-    .select('*, sites(name, work_start, work_end), correction_requests(status)')
+    .select('*, sites(name, work_start, work_end, break_minutes), correction_requests(status)')
     .eq('employee_id', employee.id)
     .gte('date', startDate)
     .lte('date', endDate)
@@ -207,7 +209,8 @@ async function loadHistory() {
   const existingRows = records.map(r => {
     const workStart = r.sites ? r.sites.work_start : null;
     const workEnd = r.sites ? r.sites.work_end : null;
-    const metrics = computeDayMetrics(r.date, r.clock_in, r.clock_out, workStart, workEnd);
+    const workBreak = r.sites ? r.sites.break_minutes : null;
+    const metrics = computeDayMetrics(r.date, r.clock_in, r.clock_out, workStart, workEnd, workBreak);
 
     const inTime = formatTimeJa(metrics.adjustedIn);
     const outTime = formatTimeJa(metrics.adjustedOut);
@@ -386,7 +389,7 @@ async function clockIn() {
     clock_in: new Date().toISOString(),
     clock_in_lat: pos ? pos.lat : null,
     clock_in_lng: pos ? pos.lng : null
-  }).select('*, sites(work_start, work_end)').single();
+  }).select('*, sites(work_start, work_end, break_minutes)').single();
   if (error) { alert('エラー: ' + error.message); btn.disabled = false; return; }
   todayRecord = data;
   updateButton();
@@ -404,7 +407,7 @@ async function clockOut() {
     clock_out: new Date().toISOString(),
     clock_out_lat: pos ? pos.lat : null,
     clock_out_lng: pos ? pos.lng : null
-  }).eq('id', todayRecord.id).select('*, sites(work_start, work_end)').single();
+  }).eq('id', todayRecord.id).select('*, sites(work_start, work_end, break_minutes)').single();
   if (error) { alert('エラー: ' + error.message); btn.disabled = false; return; }
   todayRecord = data;
   updateButton();

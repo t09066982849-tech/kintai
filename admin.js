@@ -155,7 +155,7 @@ async function exportExcel() {
 
   const { data: records, error } = await supabaseClient
     .from('time_records')
-    .select('*, employees(id, name), sites(name, work_start, work_end)')
+    .select('*, employees(id, name), sites(name, work_start, work_end, break_minutes)')
     .gte('date', startDate)
     .lte('date', endDate)
     .order('employee_id', { ascending: true })
@@ -173,7 +173,8 @@ async function exportExcel() {
 
     const workStart = r.sites ? r.sites.work_start : null;
     const workEnd = r.sites ? r.sites.work_end : null;
-    const metrics = computeDayMetrics(r.date, r.clock_in, r.clock_out, workStart, workEnd);
+    const workBreak = r.sites ? r.sites.break_minutes : null;
+    const metrics = computeDayMetrics(r.date, r.clock_in, r.clock_out, workStart, workEnd, workBreak);
 
     const inTime = formatTimeJa(metrics.adjustedIn);
     const outTime = formatTimeJa(metrics.adjustedOut);

@@ -70,7 +70,8 @@ function getJSTDateStr() {
 // 出退勤時刻を、現場の所定時間(work_start/work_end)を基準に補正する。
 // 早出・残業は最大1時間まで認め、それを超える分は所定時刻+-1時間で打ち切る。
 // 遅刻・早上がりはそのまま(補正しない)。
-function computeDayMetrics(dateStr, clockIn, clockOut, workStart, workEnd) {
+// 勤務時間は現場ごとの休憩時間(break_minutes)を差し引いた実労働時間。
+function computeDayMetrics(dateStr, clockIn, clockOut, workStart, workEnd, breakMinutes) {
   const startStr = (workStart || '07:00').slice(0, 5);
   const endStr = (workEnd || '17:00').slice(0, 5);
   const scheduledStart = new Date(dateStr + 'T' + startStr + ':00+09:00');
@@ -87,9 +88,10 @@ function computeDayMetrics(dateStr, clockIn, clockOut, workStart, workEnd) {
   let workMinutes = null;
   let overtimeMinutes = 0;
   if (adjustedIn && adjustedOut) {
-    workMinutes = Math.round((adjustedOut - adjustedIn) / 60000);
+    const rawMinutes = Math.round((adjustedOut - adjustedIn) / 60000);
+    workMinutes = Math.max(0, rawMinutes - (breakMinutes || 0));
     const scheduledMinutes = Math.round((scheduledEnd - scheduledStart) / 60000);
-    overtimeMinutes = Math.max(0, workMinutes - scheduledMinutes);
+    overtimeMinutes = Math.max(0, rawMinutes - scheduledMinutes);
   }
 
   return { adjustedIn, adjustedOut, workMinutes, overtimeMinutes, scheduledStart, scheduledEnd, earlyCap, lateCap };
