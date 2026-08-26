@@ -155,7 +155,7 @@ async function exportExcel() {
 
   const { data: records, error } = await supabaseClient
     .from('time_records')
-    .select('*, employees(id, name), sites(name, work_start, work_end, break_minutes)')
+    .select('*, employees(id, name, department), sites(name, work_start, work_end, break_minutes)')
     .gte('date', startDate)
     .lte('date', endDate)
     .order('employee_id', { ascending: true })
@@ -164,6 +164,27 @@ async function exportExcel() {
   if (error) { alert('エラー: ' + error.message); return; }
 
   if (records.length === 0) { alert('この月のデータがありません'); return; }
+
+  const { data: holidays } = await supabaseClient
+    .from('holidays')
+    .select('date')
+    .gte('date', startDate)
+    .lte('date', endDate);
+  const holidaySet = new Set((holidays || []).map(h => h.date));
+
+  const { data: companyHolidays } = await supabaseClient
+    .from('company_holidays')
+    .select('start_date, end_date');
+
+  // 打刻漏れ判定と同じ基準:経理部は土日+全国の祝日、それ以外(土木部)は土日+会社休業期間のみ
+  function isHolidayFor(dateStr, department) {
+    const weekday = new Date(dateStr + 'T00:00:00Z').getUTCDay();
+    if (weekday === 0 || weekday === 6) return true;
+    if (department === 'accounting') {
+      return holidaySet.has(dateStr);
+    }
+    return (companyHolidays || []).some(ch => ch.start_date <= dateStr && ch.end_date >= dateStr);
+  }
 
   const grouped = {};
   records.forEach(r => {
@@ -180,6 +201,8 @@ async function exportExcel() {
     const outTime = formatTimeJa(metrics.adjustedOut);
     const workTime = metrics.workMinutes != null ? formatMinutesJa(metrics.workMinutes) : '';
     const overtimeTime = metrics.workMinutes != null ? formatMinutesJa(metrics.overtimeMinutes) : '';
+    const department = r.employees ? r.employees.department : null;
+    const holidayWork = metrics.workMinutes != null && isHolidayFor(r.date, department) ? '○' : '';
 
     grouped[empId].rows.push({
       '日付': r.date,
@@ -187,7 +210,8 @@ async function exportExcel() {
       '出勤時刻': inTime,
       '退勤時刻': outTime,
       '勤務時間': workTime,
-      '残業時間': overtimeTime
+      '残業時間': overtimeTime,
+      '休日出勤': holidayWork
     });
   });
 
@@ -196,7 +220,7 @@ async function exportExcel() {
 
   Object.values(grouped).forEach(group => {
     const ws = XLSX.utils.json_to_sheet(group.rows);
-    ws['!cols'] = [{wch:12},{wch:14},{wch:10},{wch:10},{wch:10},{wch:10}];
+    ws['!cols'] = [{wch:12},{wch:14},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10}];
     const sheetName = safeSheetName(group.name, usedNames);
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
   });
