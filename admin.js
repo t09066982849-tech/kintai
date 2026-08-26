@@ -153,6 +153,14 @@ async function exportExcel() {
   const lastDay = new Date(year, month, 0).getDate();
   const endDate = `${monthVal}-${String(lastDay).padStart(2, '0')}`;
 
+  const { data: allEmployees, error: empError } = await supabaseClient
+    .from('employees')
+    .select('id, name, department')
+    .eq('is_admin', false)
+    .order('name');
+
+  if (empError) { alert('エラー: ' + empError.message); return; }
+
   const { data: records, error } = await supabaseClient
     .from('time_records')
     .select('*, employees(id, name, department), sites(name, work_start, work_end, break_minutes)')
@@ -162,8 +170,6 @@ async function exportExcel() {
     .order('date', { ascending: true });
 
   if (error) { alert('エラー: ' + error.message); return; }
-
-  if (records.length === 0) { alert('この月のデータがありません'); return; }
 
   const { data: holidays } = await supabaseClient
     .from('holidays')
@@ -176,6 +182,13 @@ async function exportExcel() {
     .from('company_holidays')
     .select('start_date, end_date');
 
+  const { data: leaveRequests } = await supabaseClient
+    .from('leave_requests')
+    .select('employee_id, type, days')
+    .eq('status', 'approved')
+    .lte('start_date', endDate)
+    .gte('end_date', startDate);
+
   // 打刻漏れ判定と同じ基準:経理部は土日+全国の祝日、それ以外(土木部)は土日+会社休業期間のみ
   function isHolidayFor(dateStr, department) {
     const weekday = new Date(dateStr + 'T00:00:00Z').getUTCDay();
@@ -186,11 +199,26 @@ async function exportExcel() {
     return (companyHolidays || []).some(ch => ch.start_date <= dateStr && ch.end_date >= dateStr);
   }
 
+  const deptLabelExport = { civil: '土木部', accounting: '経理部' };
   const grouped = {};
+  (allEmployees || []).forEach(emp => {
+    grouped[emp.id] = {
+      name: emp.name, department: emp.department, rows: [],
+      weekdayDays: 0, holidayDays: 0, workMinutesTotal: 0, overtimeMinutesTotal: 0, breakMinutesTotal: 0
+    };
+  });
+
   records.forEach(r => {
     const empId = r.employees ? r.employees.id : 'unknown';
     const empName = r.employees ? r.employees.name : '不明';
-    if (!grouped[empId]) grouped[empId] = { name: empName, rows: [] };
+    const department = r.employees ? r.employees.department : null;
+    if (!grouped[empId]) {
+      grouped[empId] = {
+        name: empName, department, rows: [],
+        weekdayDays: 0, holidayDays: 0, workMinutesTotal: 0, overtimeMinutesTotal: 0, breakMinutesTotal: 0
+      };
+    }
+    const group = grouped[empId];
 
     const workStart = r.sites ? r.sites.work_start : null;
     const workEnd = r.sites ? r.sites.work_end : null;
@@ -201,10 +229,17 @@ async function exportExcel() {
     const outTime = formatTimeJa(metrics.adjustedOut);
     const workTime = metrics.workMinutes != null ? formatMinutesJa(metrics.workMinutes) : '';
     const overtimeTime = metrics.workMinutes != null ? formatMinutesJa(metrics.overtimeMinutes) : '';
-    const department = r.employees ? r.employees.department : null;
-    const holidayWork = metrics.workMinutes != null && isHolidayFor(r.date, department) ? '○' : '';
+    const isHoliday = isHolidayFor(r.date, department);
+    const holidayWork = metrics.workMinutes != null && isHoliday ? '○' : '';
 
-    grouped[empId].rows.push({
+    if (metrics.workMinutes != null) {
+      if (isHoliday) group.holidayDays++; else group.weekdayDays++;
+      group.workMinutesTotal += metrics.workMinutes;
+      group.overtimeMinutesTotal += metrics.overtimeMinutes;
+      group.breakMinutesTotal += (workBreak || 0);
+    }
+
+    group.rows.push({
       '日付': r.date,
       '現場': r.sites ? r.sites.name : '',
       '出勤時刻': inTime,
@@ -215,15 +250,42 @@ async function exportExcel() {
     });
   });
 
+  const leaveDaysByEmployee = {};
+  (leaveRequests || []).forEach(lr => {
+    if (!leaveDaysByEmployee[lr.employee_id]) leaveDaysByEmployee[lr.employee_id] = { paid_leave: 0, business_trip: 0 };
+    leaveDaysByEmployee[lr.employee_id][lr.type] = (leaveDaysByEmployee[lr.employee_id][lr.type] || 0) + Number(lr.days || 0);
+  });
+
   const wb = XLSX.utils.book_new();
   const usedNames = new Set();
 
-  Object.values(grouped).forEach(group => {
-    const ws = XLSX.utils.json_to_sheet(group.rows);
-    ws['!cols'] = [{wch:12},{wch:14},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10}];
-    const sheetName = safeSheetName(group.name, usedNames);
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  const summaryRows = Object.entries(grouped).map(([empId, group]) => {
+    const leave = leaveDaysByEmployee[empId] || {};
+    return {
+      '氏名': group.name,
+      '部署': deptLabelExport[group.department] || group.department || '',
+      '平日出勤日数': group.weekdayDays,
+      '休日出勤日数': group.holidayDays,
+      '有休取得日数': leave.paid_leave || 0,
+      '出張日数': leave.business_trip || 0,
+      '総勤務時間': formatMinutesJa(group.workMinutesTotal),
+      '総残業時間': formatMinutesJa(group.overtimeMinutesTotal),
+      '休憩時間合計': formatMinutesJa(group.breakMinutesTotal)
+    };
   });
+  const summaryWs = XLSX.utils.json_to_sheet(summaryRows);
+  summaryWs['!cols'] = [{wch:14},{wch:10},{wch:12},{wch:12},{wch:12},{wch:10},{wch:12},{wch:12},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, summaryWs, '全員まとめ');
+
+  const includeDaily = document.getElementById('export-include-daily').checked;
+  if (includeDaily) {
+    Object.values(grouped).forEach(group => {
+      const ws = XLSX.utils.json_to_sheet(group.rows);
+      ws['!cols'] = [{wch:12},{wch:14},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10}];
+      const sheetName = safeSheetName(group.name, usedNames);
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    });
+  }
 
   XLSX.writeFile(wb, `勤怠データ_${monthVal}.xlsx`);
 }
