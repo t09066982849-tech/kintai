@@ -1,5 +1,8 @@
 let employee = null;
 
+// 役員(社長・常務・伊豆倉鈴雄・大角賢一)は個人別の有給管理簿も無く、集計系の対象外
+const EXCLUDED_EXECUTIVE_IDS = [6, 7, 8, 9];
+
 async function init() {
   employee = await requireEmployee();
   if (!employee) return;
@@ -14,6 +17,9 @@ async function init() {
 
   const now = new Date();
   document.getElementById('export-month').value = now.toISOString().slice(0, 7);
+  // 年度は6月始まりなので、6月以降なら今年が開始年、5月以前なら去年が開始年
+  const currentMonth = now.getMonth() + 1;
+  document.getElementById('annual-start-year').value = currentMonth >= 6 ? now.getFullYear() : now.getFullYear() - 1;
 
   loadRequests();
   loadSites();
@@ -176,11 +182,12 @@ async function exportExcel() {
   const lastDay = new Date(year, month, 0).getDate();
   const endDate = `${monthVal}-${String(lastDay).padStart(2, '0')}`;
 
-  const { data: allEmployees, error: empError } = await supabaseClient
+  const { data: rawEmployees, error: empError } = await supabaseClient
     .from('employees')
     .select('id, name, department')
     .eq('is_admin', false)
     .order('name');
+  const allEmployees = (rawEmployees || []).filter(e => !EXCLUDED_EXECUTIVE_IDS.includes(e.id));
 
   if (empError) { alert('エラー: ' + empError.message); return; }
 
@@ -311,6 +318,186 @@ async function exportExcel() {
   }
 
   XLSX.writeFile(wb, `勤怠データ_${monthVal}.xlsx`);
+}
+
+// kintai運用開始前(2026年6月・7月)の残業時間は日次データが無く再現できないため、
+// 旧システム(タッチオンタイム)の月合計値を参考値として保持しておく。
+// 出典:R8年度時間外・有給休暇.xlsx(法定時間外集計シート)。佐々木さんは元データに無かったため含まない。
+const HISTORICAL_OVERTIME_2026 = {
+  1: { 6: 1.59, 7: 5.4 },     // 嶋木 正
+  11: { 6: 16.17, 7: 24.39 }, // 大坂 朝夫
+  12: { 6: 20.55, 7: 24.72 }, // 小山内 寛悦
+  13: { 6: 0, 7: 0 },         // 山本 英嗣
+  14: { 6: 3.1, 7: 1.57 },    // 森井 良浩
+  15: { 6: 22.5, 7: 22.24 },  // 三島 健
+  16: { 6: 0.64, 7: 15.53 },  // 三橋 徹
+  17: { 6: 22.27, 7: 13.15 }, // 鈴木 智則
+  18: { 6: 22.57, 7: 33.22 }, // 佐野 雅俊
+  19: { 6: 11.49, 7: 48.48 }, // 高木 裕幸
+  20: { 6: 0.64, 7: 2.22 },   // 田中 規善
+  21: { 6: 14.12, 7: 23.15 }, // 久保 浩康
+  22: { 6: 6.6, 7: 6.05 },    // 松浦 春那
+  23: { 6: 9.2, 7: 0.42 },    // 薄田 紀道
+  24: { 6: 0.89, 7: 0.34 },   // 岩渕 悠汰
+  25: { 6: 23.32, 7: 20.35 }, // 宇野 綾悟
+  26: { 6: 0.99, 7: 21.22 },  // 小中 祐
+  27: { 6: 3.15, 7: 0 },      // 須田 隼士
+  28: { 6: 17.82, 7: 4.74 },  // 高橋 日和
+  29: { 6: 3.94, 7: 5.54 },   // 佐藤 秀樹
+  30: { 6: 8.7, 7: 10.42 },   // 山崎 太一
+  31: { 6: 7.2, 7: 8.2 },     // 平野 聖美
+  32: { 6: 0, 7: 0 },         // 古澤 直理
+  34: { 6: 10.4, 7: 5.32 },   // 勝野 美則
+  35: { 6: 16.74, 7: 30.59 }, // 川股 大将
+};
+
+// 労基法の一般基準の有給付与表(grant-paid-leave Edge Functionと同じ表)
+const ANNUAL_GRANT_TABLE = [10, 11, 12, 14, 16, 18]; // n=0(6ヶ月)〜5(5.5年)、n>=6は毎年20日
+
+function addMonthsUTC(dateStr, months) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1 + months, d));
+}
+
+// hire_dateを基準に、rangeStart〜rangeEndの間に付与基準日が来ていればその日数を返す(無ければ0)
+function grantedDaysInRange(hireDate, rangeStart, rangeEnd) {
+  if (!hireDate) return 0;
+  const baseAnniv = addMonthsUTC(hireDate, 6);
+  for (let n = 0; n < 60; n++) {
+    const anniv = new Date(Date.UTC(baseAnniv.getUTCFullYear() + n, baseAnniv.getUTCMonth(), baseAnniv.getUTCDate()));
+    const annivStr = anniv.toISOString().slice(0, 10);
+    if (annivStr > rangeEnd) break;
+    if (annivStr >= rangeStart) {
+      return n < ANNUAL_GRANT_TABLE.length ? ANNUAL_GRANT_TABLE[n] : 20;
+    }
+  }
+  return 0;
+}
+
+// 6月始まり12ヶ月分、法定/所定時間外集計・有給休暇取得日数の3シートを出力する。
+// 「令和X年度 時間外・有給休暇」形式の既存Excel(旧システム)に合わせた形式。
+async function exportAnnualSummary() {
+  const startYear = Number(document.getElementById('annual-start-year').value);
+  if (!startYear) { alert('年度の開始年を入力してください'); return; }
+  const startMonthNum = 6; // 年度は6月始まり固定
+
+  const months = [];
+  for (let i = 0; i < 12; i++) {
+    const y = startYear + Math.floor((startMonthNum - 1 + i) / 12);
+    const m = ((startMonthNum - 1 + i) % 12) + 1;
+    months.push({ year: y, month: m, label: `${m}月` });
+  }
+
+  const rangeStart = `${months[0].year}-${String(months[0].month).padStart(2, '0')}-01`;
+  const last = months[11];
+  const lastDay = new Date(last.year, last.month, 0).getDate();
+  const rangeEnd = `${last.year}-${String(last.month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+  const reiwaYear = startYear - 2018;
+  const fiscalLabel = `令和${reiwaYear}年度`;
+
+  const { data: rawEmployees, error: empError } = await supabaseClient
+    .from('employees')
+    .select('id, name, hire_date')
+    .eq('is_admin', false)
+    .order('id');
+  if (empError) { alert('エラー: ' + empError.message); return; }
+  const allEmployees = (rawEmployees || []).filter(e => !EXCLUDED_EXECUTIVE_IDS.includes(e.id));
+
+  const { data: records, error } = await supabaseClient
+    .from('time_records')
+    .select('employee_id, date, clock_in, clock_out, sites(work_start, work_end, break_minutes)')
+    .gte('date', rangeStart)
+    .lte('date', rangeEnd);
+  if (error) { alert('エラー: ' + error.message); return; }
+
+  const { data: leaveRequests } = await supabaseClient
+    .from('leave_requests')
+    .select('employee_id, days, start_date')
+    .eq('status', 'approved')
+    .eq('type', 'paid_leave')
+    .gte('start_date', rangeStart)
+    .lte('start_date', rangeEnd);
+
+  const monthIndex = {};
+  months.forEach((m, i) => { monthIndex[`${m.year}-${String(m.month).padStart(2, '0')}`] = i; });
+
+  const overtimeByEmployee = {};
+  const leaveByEmployee = {};
+  (allEmployees || []).forEach(emp => {
+    overtimeByEmployee[emp.id] = new Array(12).fill(0);
+    leaveByEmployee[emp.id] = new Array(12).fill(0);
+  });
+
+  (records || []).forEach(r => {
+    if (!(r.employee_id in overtimeByEmployee)) return;
+    const idx = monthIndex[r.date.slice(0, 7)];
+    if (idx === undefined) return;
+
+    const workStart = r.sites ? r.sites.work_start : null;
+    const workEnd = r.sites ? r.sites.work_end : null;
+    const workBreak = r.sites ? r.sites.break_minutes : null;
+    const metrics = computeDayMetrics(r.date, r.clock_in, r.clock_out, workStart, workEnd, workBreak);
+    if (metrics.workMinutes != null) {
+      overtimeByEmployee[r.employee_id][idx] += metrics.overtimeMinutes / 60;
+    }
+  });
+
+  (leaveRequests || []).forEach(lr => {
+    if (!(lr.employee_id in leaveByEmployee)) return;
+    const idx = monthIndex[lr.start_date.slice(0, 7)];
+    if (idx === undefined) return;
+    leaveByEmployee[lr.employee_id][idx] += Number(lr.days || 0);
+  });
+
+  // kintai運用開始前(2026年6月・7月)は日次データが無いため、旧システムの月合計値で上書きする
+  months.forEach((m, idx) => {
+    if (m.year !== 2026 || (m.month !== 6 && m.month !== 7)) return;
+    Object.keys(overtimeByEmployee).forEach(empId => {
+      const hist = HISTORICAL_OVERTIME_2026[empId];
+      if (hist && hist[m.month] !== undefined) {
+        overtimeByEmployee[empId][idx] = hist[m.month];
+      }
+    });
+  });
+
+  const monthHeaders = months.map(m => m.label);
+  const round2 = n => Math.round(n * 100) / 100;
+
+  function buildOvertimeRows() {
+    return (allEmployees || []).map((emp, i) => {
+      const arr = overtimeByEmployee[emp.id];
+      const total = arr.reduce((a, b) => a + b, 0);
+      const row = { 'No': i + 1, [fiscalLabel]: emp.name };
+      monthHeaders.forEach((h, idx) => { row[h] = round2(arr[idx]) || null; });
+      row['合計'] = round2(total);
+      row['平均'] = round2(total / 12);
+      return row;
+    });
+  }
+
+  function buildLeaveRows() {
+    return (allEmployees || []).map((emp, i) => {
+      const arr = leaveByEmployee[emp.id];
+      const total = arr.reduce((a, b) => a + b, 0);
+      const granted = grantedDaysInRange(emp.hire_date, rangeStart, rangeEnd);
+      const rate = granted > 0 ? round2(total / granted * 100) / 100 : 0;
+      const row = { 'No': i + 1, [fiscalLabel]: emp.name };
+      monthHeaders.forEach((h, idx) => { row[h] = arr[idx] || null; });
+      row['合計'] = total;
+      row['付与日数'] = granted;
+      row['取得率'] = rate;
+      return row;
+    });
+  }
+
+  const wb = XLSX.utils.book_new();
+  const overtimeRows = buildOvertimeRows();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(overtimeRows), '法定時間外集計');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(overtimeRows), '所定時間外集計');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(buildLeaveRows()), '有給休暇取得日数');
+
+  XLSX.writeFile(wb, `${fiscalLabel}_時間外・有給休暇.xlsx`);
 }
 
 const adminTypeLabel = { paid_leave: '有給休暇', business_trip: '出張' };
