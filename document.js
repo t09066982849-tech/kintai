@@ -1,5 +1,5 @@
 const deptLabel = { civil: '土木部', accounting: '経理部' };
-const approverLabel = { manager: '部長', director: '常務', president: '社長' };
+const approverLabel = { manager: '部長', director: '常務' };
 
 function sealName(fullName) {
   if (!fullName) return '';
@@ -32,7 +32,7 @@ async function loadDocument() {
     return;
   }
 
-  const approverIds = [req.manager_approved_by, req.director_approved_by, req.president_approved_by].filter(Boolean);
+  const approverIds = [req.manager_approved_by, req.director_approved_by].filter(Boolean);
   const { data: approvers } = await supabaseClient.from('employees').select('id, name').in('id', approverIds);
   const nameById = {};
   (approvers || []).forEach(a => { nameById[a.id] = a.name; });
@@ -47,23 +47,19 @@ async function loadDocument() {
   content.innerHTML = html + '<button class="print-btn" onclick="window.print()">印刷 / PDFとして保存</button>';
 }
 
-function approvalTable(req, nameById, managerLabel) {
-  return `
-  <table class="approval-table">
-    <tr><th>社長</th><th>常務</th><th>${managerLabel}</th></tr>
-    <tr>
-      <td>${seal(nameById[req.president_approved_by])}</td>
-      <td>${seal(nameById[req.director_approved_by])}</td>
-      <td>${seal(nameById[req.manager_approved_by])}</td>
-    </tr>
-  </table>`;
-}
-
 function renderPaidLeave(req, nameById, deptText, managerLabel) {
   return `
     <div class="doc-title">有給休暇届</div>
-    <p>株式会社伊豆倉組 様</p>
-    ${approvalTable(req, nameById, managerLabel)}
+    <div class="doc-header">
+      <div class="doc-header-to">株式会社伊豆倉組 様</div>
+      <table class="seal-table">
+        <tr><th>常務</th><th>${managerLabel}</th></tr>
+        <tr>
+          <td>${seal(nameById[req.director_approved_by], true)}</td>
+          <td>${seal(nameById[req.manager_approved_by], true)}</td>
+        </tr>
+      </table>
+    </div>
     <table>
       <tr><th>所属</th><td>${deptText}</td></tr>
       <tr><th>氏名</th><td>${req.employees.name}</td></tr>
@@ -82,9 +78,8 @@ function renderBusinessTrip(req, nameById, deptText, managerLabel) {
     <div class="doc-header">
       <div class="doc-header-to">株式会社伊豆倉組 様</div>
       <table class="seal-table">
-        <tr><th>社長</th><th>常務</th><th>${managerLabel}</th></tr>
+        <tr><th>常務</th><th>${managerLabel}</th></tr>
         <tr>
-          <td>${seal(nameById[req.president_approved_by], true)}</td>
           <td>${seal(nameById[req.director_approved_by], true)}</td>
           <td>${seal(nameById[req.manager_approved_by], true)}</td>
         </tr>

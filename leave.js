@@ -1,14 +1,13 @@
 let employee = null;
 
 const typeLabel = { paid_leave: '有給休暇', business_trip: '出張' };
-const stageLabel = { manager: '部長承認待ち', director: '常務承認待ち', president: '社長承認待ち', done: '承認完了' };
+const stageLabel = { manager: '部長承認待ち', director: '常務承認待ち', done: '承認完了' };
 
-const APPROVER_ROLES = ['president', 'director', 'manager_civil', 'manager_accounting'];
+const APPROVER_ROLES = ['director', 'manager_civil', 'manager_accounting'];
 
 function requiredRoleForStage(stage, department) {
   if (stage === 'manager') return department === 'accounting' ? 'manager_accounting' : 'manager_civil';
   if (stage === 'director') return 'director';
-  if (stage === 'president') return 'president';
   return null;
 }
 
@@ -220,10 +219,6 @@ async function advanceStage(request, approverId, isSkip) {
   } else if (request.current_stage === 'director') {
     updates.director_approved_by = approverId;
     updates.director_approved_at = now;
-    updates.current_stage = 'president';
-  } else if (request.current_stage === 'president') {
-    updates.president_approved_by = approverId;
-    updates.president_approved_at = now;
     updates.current_stage = 'done';
     updates.status = 'approved';
   }
