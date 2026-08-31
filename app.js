@@ -13,7 +13,7 @@ async function init() {
 
   document.getElementById('paid-leave-balance').innerHTML = `残り有給:<span style="color:#dc2626">${employee.paid_leave_balance}</span>日`;
 
-  const { data: sites } = await supabaseClient.from('sites').select('*');
+  const { data: sites } = await supabaseClient.from('sites').select('*').eq('is_active', true);
   allSites = sites;
   const select = document.getElementById('site-select');
   select.innerHTML = sites.map(s => `<option value="${s.id}">${s.name}</option>`).join('');

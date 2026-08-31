@@ -111,7 +111,14 @@ async function loadSites() {
   tbody.innerHTML = sites.map(s => `
     <tr>
       <td>${s.name}</td>
-      <td><button class="small" style="background:#dc2626" onclick="deleteSite(${s.id})">削除</button></td>
+      <td>${s.is_active ? '<span class="status-approved">有効</span>' : '<span class="status-rejected">無効</span>'}</td>
+      <td>
+        ${s.is_active
+          ? `<button class="small" style="background:#dc2626" onclick="toggleSiteActive(${s.id}, false)">無効化</button>`
+          : `<button class="small" onclick="toggleSiteActive(${s.id}, true)">有効化</button>`
+        }
+        <button class="small" style="background:#9ca3af" onclick="deleteSite(${s.id})">削除</button>
+      </td>
     </tr>
   `).join('');
 }
@@ -125,10 +132,26 @@ async function addSite() {
   loadSites();
 }
 
-async function deleteSite(id) {
-  if (!confirm('削除しますか？')) return;
-  const { error } = await supabaseClient.from('sites').delete().eq('id', id);
+async function toggleSiteActive(id, makeActive) {
+  const label = makeActive ? '有効化' : '無効化';
+  if (!confirm(`この現場を${label}します。よろしいですか？`)) return;
+
+  const { error } = await supabaseClient.from('sites').update({ is_active: makeActive }).eq('id', id);
   if (error) { alert('エラー: ' + error.message); return; }
+  loadSites();
+}
+
+async function deleteSite(id) {
+  if (!confirm('削除しますか？(使用履歴があると削除できません。その場合は無効化してください)')) return;
+  const { error } = await supabaseClient.from('sites').delete().eq('id', id);
+  if (error) {
+    if (error.code === '23503') {
+      alert('この現場は打刻記録の使用履歴があるため削除できません。代わりに「無効化」を使ってください。');
+    } else {
+      alert('エラー: ' + error.message);
+    }
+    return;
+  }
   loadSites();
 }
 
