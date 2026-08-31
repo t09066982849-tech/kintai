@@ -119,6 +119,7 @@ async function loadSites() {
       <td>${s.name}</td>
       <td>${s.is_active ? '<span class="status-approved">有効</span>' : '<span class="status-rejected">無効</span>'}</td>
       <td>
+        <button class="small" onclick="editSite(${s.id})">編集</button>
         ${s.is_active
           ? `<button class="small" style="background:#dc2626" onclick="toggleSiteActive(${s.id}, false)">無効化</button>`
           : `<button class="small" onclick="toggleSiteActive(${s.id}, true)">有効化</button>`
@@ -127,6 +128,18 @@ async function loadSites() {
       </td>
     </tr>
   `).join('');
+}
+
+async function editSite(id) {
+  const { data: site, error } = await supabaseClient.from('sites').select('name').eq('id', id).single();
+  if (error) { alert('エラー: ' + error.message); return; }
+
+  const newName = prompt('新しい現場名を入力してください', site.name);
+  if (!newName || !newName.trim() || newName.trim() === site.name) return;
+
+  const { error: updateError } = await supabaseClient.from('sites').update({ name: newName.trim() }).eq('id', id);
+  if (updateError) { alert('エラー: ' + updateError.message); return; }
+  loadSites();
 }
 
 async function addSite() {
