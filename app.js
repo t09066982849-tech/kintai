@@ -125,7 +125,7 @@ async function loadHistory() {
 
   const { data: records, error } = await supabaseClient
     .from('time_records')
-    .select('*, sites(name, work_start, work_end, break_minutes), correction_requests(status)')
+    .select('*, sites(name, work_start, work_end, break_minutes), correction_requests(id, status)')
     .eq('employee_id', employee.id)
     .gte('date', startDate)
     .lte('date', endDate)
@@ -228,6 +228,8 @@ async function loadHistory() {
       actionCell = `<span class="${classMap[latest.status]}">${labelMap[latest.status]}</span>`;
       if (latest.status === 'rejected') {
         actionCell += ` <button class="small" onclick="openModal(${r.id})">再申請</button>`;
+      } else if (latest.status === 'pending') {
+        actionCell += ` <button class="small" style="background:#dc2626" onclick="cancelCorrectionRequest(${latest.id})">取り消し</button>`;
       }
     }
 
@@ -353,6 +355,15 @@ async function submitCorrection() {
 
   if (error) { alert('エラー: ' + error.message); return; }
   closeModal();
+  loadHistory();
+}
+
+async function cancelCorrectionRequest(id) {
+  if (!(await ensureSession())) return;
+  if (!confirm('この申請を取り消しますか？')) return;
+
+  const { error } = await supabaseClient.from('correction_requests').delete().eq('id', id);
+  if (error) { alert('エラー: ' + error.message); return; }
   loadHistory();
 }
 
