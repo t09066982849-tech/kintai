@@ -230,6 +230,8 @@ async function loadHistory() {
         actionCell += ` <button class="small" onclick="openModal(${r.id})">再申請</button>`;
       } else if (latest.status === 'pending') {
         actionCell += ` <button class="small" style="background:#dc2626" onclick="cancelCorrectionRequest(${latest.id})">取り消し</button>`;
+      } else if (latest.status === 'approved') {
+        actionCell += ` <button class="small" onclick="openModal(${r.id})">修正申請</button>`;
       }
     }
 
