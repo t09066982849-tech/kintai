@@ -28,72 +28,90 @@
   </div>
   <button style="background:#9ca3af" onclick="logout()">ログアウト</button>
 
-  <h3>本日の打刻状況</h3>
-  <button onclick="loadTodayStatus()">更新</button>
-  <table>
-    <thead><tr><th>氏名</th><th>部署</th><th>現場</th><th>出勤時刻</th><th>退勤時刻</th><th>状態</th></tr></thead>
-    <tbody id="today-status-body"></tbody>
-  </table>
+  <details open>
+    <summary>修正申請一覧(申請中)</summary>
+    <table>
+      <thead><tr><th>従業員</th><th>日付</th><th>現在の現場</th><th>現在の出勤</th><th>現在の退勤</th><th>希望の現場</th><th>希望の出勤</th><th>希望の退勤</th><th>操作</th></tr></thead>
+      <tbody id="requests-body"></tbody>
+    </table>
+  </details>
 
-  <h3>Excel出力</h3>
-  <input type="month" id="export-month">
-  <label style="display:flex; align-items:center; gap:8px; width:auto;">
-    <input type="checkbox" id="export-include-daily" checked style="width:auto; margin:0;">
-    個人別シートを含める
-  </label>
-  <button onclick="exportExcel()">この月のデータをExcelでダウンロード</button>
+  <details>
+    <summary>本日の打刻状況</summary>
+    <button onclick="loadTodayStatus()">更新</button>
+    <table>
+      <thead><tr><th>氏名</th><th>部署</th><th>現場</th><th>出勤時刻</th><th>退勤時刻</th><th>状態</th></tr></thead>
+      <tbody id="today-status-body"></tbody>
+    </table>
+  </details>
 
-  <h3>年間集計Excel出力(6月始まり年度)</h3>
-  <label>開始年(西暦)</label>
-  <input type="number" id="annual-start-year">
-  <button onclick="exportAnnualSummary()">12ヶ月分の集計をExcelでダウンロード</button>
+  <details>
+    <summary>Excel出力</summary>
+    <input type="month" id="export-month">
+    <label style="display:flex; align-items:center; gap:8px; width:auto;">
+      <input type="checkbox" id="export-include-daily" checked style="width:auto; margin:0;">
+      個人別シートを含める
+    </label>
+    <button onclick="exportExcel()">この月のデータをExcelでダウンロード</button>
+  </details>
 
-  <h3>修正申請一覧(申請中)</h3>
-  <table>
-    <thead><tr><th>従業員</th><th>日付</th><th>現在の現場</th><th>現在の出勤</th><th>現在の退勤</th><th>希望の現場</th><th>希望の出勤</th><th>希望の退勤</th><th>操作</th></tr></thead>
-    <tbody id="requests-body"></tbody>
-  </table>
+  <details>
+    <summary>年間集計Excel出力(6月始まり年度)</summary>
+    <label>開始年(西暦)</label>
+    <input type="number" id="annual-start-year">
+    <button onclick="exportAnnualSummary()">12ヶ月分の集計をExcelでダウンロード</button>
+  </details>
 
-  <h3>打刻記録の追加申請</h3>
-  <table>
-    <thead><tr><th>従業員</th><th>日付</th><th>現場</th><th>希望出勤時刻</th><th>希望退勤時刻</th><th>操作</th></tr></thead>
-    <tbody id="missing-requests-body"></tbody>
-  </table>
+  <details>
+    <summary>打刻記録の追加申請</summary>
+    <table>
+      <thead><tr><th>従業員</th><th>日付</th><th>現場</th><th>希望出勤時刻</th><th>希望退勤時刻</th><th>操作</th></tr></thead>
+      <tbody id="missing-requests-body"></tbody>
+    </table>
+  </details>
 
-  <h3>承認済み申請書類</h3>
-  <table>
-    <thead><tr><th>従業員</th><th>種類</th><th>期間</th><th>操作</th></tr></thead>
-    <tbody id="approved-leave-body"></tbody>
-  </table>
+  <details>
+    <summary>承認済み申請書類</summary>
+    <table>
+      <thead><tr><th>従業員</th><th>種類</th><th>期間</th><th>操作</th></tr></thead>
+      <tbody id="approved-leave-body"></tbody>
+    </table>
+  </details>
 
-  <h3>現場管理</h3>
-  <input id="new-site-name" placeholder="現場名">
-  <button onclick="addSite()">追加</button>
-  <table>
-    <thead><tr><th>現場名</th><th>状態</th><th>操作</th></tr></thead>
-    <tbody id="sites-body"></tbody>
-  </table>
+  <details>
+    <summary>現場管理</summary>
+    <input id="new-site-name" placeholder="現場名">
+    <button onclick="addSite()">追加</button>
+    <table>
+      <thead><tr><th>現場名</th><th>状態</th><th>操作</th></tr></thead>
+      <tbody id="sites-body"></tbody>
+    </table>
+  </details>
 
-  <h3>新規従業員登録</h3>
-  <label>氏名</label>
-  <input id="new-emp-name" placeholder="例:山田 太郎">
-  <label>メールアドレス</label>
-  <input id="new-emp-email" type="email" placeholder="例:yamada@izukura.co.jp">
-  <label>初期パスワード</label>
-  <input id="new-emp-password" type="text" placeholder="本人に伝えるパスワード">
-  <label>部署</label>
-  <select id="new-emp-department">
-    <option value="civil">土木部</option>
-    <option value="accounting">経理部</option>
-  </select>
-  <button onclick="createEmployee()">登録する</button>
-  <p id="create-emp-message"></p>
+  <details>
+    <summary>新規従業員登録</summary>
+    <label>氏名</label>
+    <input id="new-emp-name" placeholder="例:山田 太郎">
+    <label>メールアドレス</label>
+    <input id="new-emp-email" type="email" placeholder="例:yamada@izukura.co.jp">
+    <label>初期パスワード</label>
+    <input id="new-emp-password" type="text" placeholder="本人に伝えるパスワード">
+    <label>部署</label>
+    <select id="new-emp-department">
+      <option value="civil">土木部</option>
+      <option value="accounting">経理部</option>
+    </select>
+    <button onclick="createEmployee()">登録する</button>
+    <p id="create-emp-message"></p>
+  </details>
 
-  <h3>従業員一覧</h3>
-  <table>
-    <thead><tr><th>氏名</th><th>部署</th><th>状態</th><th>操作</th></tr></thead>
-    <tbody id="employees-body"></tbody>
-  </table>
+  <details>
+    <summary>従業員一覧</summary>
+    <table>
+      <thead><tr><th>氏名</th><th>部署</th><th>状態</th><th>操作</th></tr></thead>
+      <tbody id="employees-body"></tbody>
+    </table>
+  </details>
 </div>
 
 <div class="modal-bg" id="employee-detail-modal-bg">
