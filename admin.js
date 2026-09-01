@@ -759,7 +759,7 @@ const deptLabel = { civil: '土木部', accounting: '経理部' };
 async function loadEmployees() {
   const { data: employees, error } = await supabaseClient
     .from('employees')
-    .select('id, name, department, is_active')
+    .select('id, name, department, is_active, paid_leave_balance')
     .eq('is_admin', false)
     .order('name');
 
@@ -770,6 +770,7 @@ async function loadEmployees() {
     <tr>
       <td>${e.name}</td>
       <td>${deptLabel[e.department] || e.department || '-'}</td>
+      <td style="color:#dc2626">${e.paid_leave_balance != null ? e.paid_leave_balance : '-'}</td>
       <td>${e.is_active ? '<span class="status-approved">有効</span>' : '<span class="status-rejected">無効</span>'}</td>
       <td>
         ${e.is_active
