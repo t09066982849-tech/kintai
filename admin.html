@@ -28,6 +28,13 @@
   </div>
   <button style="background:#9ca3af" onclick="logout()">ログアウト</button>
 
+  <h3>本日の打刻状況</h3>
+  <button onclick="loadTodayStatus()">更新</button>
+  <table>
+    <thead><tr><th>氏名</th><th>部署</th><th>現場</th><th>出勤時刻</th><th>退勤時刻</th><th>状態</th></tr></thead>
+    <tbody id="today-status-body"></tbody>
+  </table>
+
   <h3>Excel出力</h3>
   <input type="month" id="export-month">
   <label style="display:flex; align-items:center; gap:8px; width:auto;">
@@ -89,7 +96,19 @@
   </table>
 </div>
 
-<script src="common.js"></script> 
+<div class="modal-bg" id="employee-detail-modal-bg">
+  <div class="modal">
+    <h3 id="employee-detail-name"></h3>
+    <p id="employee-detail-month"></p>
+    <table>
+      <thead><tr><th>日付</th><th>現場</th><th>出勤</th><th>退勤</th><th>勤務時間</th><th>残業時間</th></tr></thead>
+      <tbody id="employee-detail-body"></tbody>
+    </table>
+    <button style="background:#9ca3af" onclick="closeEmployeeDetail()">閉じる</button>
+  </div>
+</div>
+
+<script src="common.js"></script>
 <script src="admin.js"></script>
 </body>
 </html>

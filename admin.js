@@ -26,10 +26,107 @@ async function init() {
   loadApprovedLeaveRequests();
   loadMissingRequests();
   loadEmployees();
+  loadTodayStatus();
+}
+
+const deptLabelStatus = { civil: '土木部', accounting: '経理部' };
+const statusLabel = { none: '未出勤', working: '出勤中', done: '退勤済み' };
+const statusClass = { none: 'status-rejected', working: 'status-pending', done: 'status-approved' };
+
+async function loadTodayStatus() {
+  const today = getJSTDateStr();
+
+  const { data: rawEmployees, error: empError } = await supabaseClient
+    .from('employees')
+    .select('id, name, department')
+    .eq('is_admin', false)
+    .eq('is_active', true)
+    .order('name');
+  if (empError) { console.error(empError); return; }
+  const allEmployees = (rawEmployees || []).filter(e => !EXCLUDED_EXECUTIVE_IDS.includes(e.id));
+
+  const { data: records, error } = await supabaseClient
+    .from('time_records')
+    .select('employee_id, clock_in, clock_out, sites(name)')
+    .eq('date', today);
+  if (error) { console.error(error); return; }
+
+  const recordByEmployee = {};
+  (records || []).forEach(r => { recordByEmployee[r.employee_id] = r; });
+
+  const tbody = document.getElementById('today-status-body');
+  tbody.innerHTML = allEmployees.map(emp => {
+    const r = recordByEmployee[emp.id];
+    let status = 'none';
+    if (r && r.clock_in && !r.clock_out) status = 'working';
+    else if (r && r.clock_in && r.clock_out) status = 'done';
+
+    return `
+      <tr>
+        <td><button class="small" onclick="showEmployeeDetail(${emp.id}, '${emp.name.replace(/'/g, "\\'")}')">${emp.name}</button></td>
+        <td>${deptLabelStatus[emp.department] || emp.department || ''}</td>
+        <td>${r && r.sites ? r.sites.name : '-'}</td>
+        <td>${formatTimeJa(r && r.clock_in ? new Date(r.clock_in) : null)}</td>
+        <td>${formatTimeJa(r && r.clock_out ? new Date(r.clock_out) : null)}</td>
+        <td><span class="${statusClass[status]}">${statusLabel[status]}</span></td>
+      </tr>
+    `;
+  }).join('');
 }
 
 function fmtTime(t) {
   return t ? new Date(t).toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : '-';
+}
+
+async function showEmployeeDetail(employeeId, employeeName) {
+  const today = getJSTDateStr();
+  const [year, month] = today.split('-').map(Number);
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+  const { data: records, error } = await supabaseClient
+    .from('time_records')
+    .select('date, clock_in, clock_out, sites(name, work_start, work_end, break_minutes)')
+    .eq('employee_id', employeeId)
+    .gte('date', startDate)
+    .lte('date', endDate)
+    .order('date', { ascending: true });
+
+  document.getElementById('employee-detail-name').textContent = `${employeeName} さん`;
+  document.getElementById('employee-detail-month').textContent = `${year}年${month}月`;
+
+  const tbody = document.getElementById('employee-detail-body');
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="6">エラー: ${error.message}</td></tr>`;
+  } else if (!records || records.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6">今月の記録がありません</td></tr>';
+  } else {
+    tbody.innerHTML = records.map(r => {
+      const workStart = r.sites ? r.sites.work_start : null;
+      const workEnd = r.sites ? r.sites.work_end : null;
+      const workBreak = r.sites ? r.sites.break_minutes : null;
+      const metrics = computeDayMetrics(r.date, r.clock_in, r.clock_out, workStart, workEnd, workBreak);
+      const workTime = metrics.workMinutes != null ? formatMinutesJa(metrics.workMinutes) : '-';
+      const overtimeTime = metrics.workMinutes != null ? formatMinutesJa(metrics.overtimeMinutes) : '-';
+      return `
+        <tr>
+          <td>${r.date}</td>
+          <td>${r.sites ? r.sites.name : '-'}</td>
+          <td>${formatTimeJa(metrics.adjustedIn)}</td>
+          <td>${formatTimeJa(metrics.adjustedOut)}</td>
+          <td>${workTime}</td>
+          <td>${overtimeTime}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  document.getElementById('employee-detail-modal-bg').style.display = 'flex';
+}
+
+function closeEmployeeDetail() {
+  document.getElementById('employee-detail-modal-bg').style.display = 'none';
 }
 
 async function loadRequests() {
