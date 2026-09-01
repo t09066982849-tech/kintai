@@ -307,6 +307,9 @@ function openModal(recordId) {
 
   document.getElementById('req-clock-in').value = originalIn;
   document.getElementById('req-clock-out').value = originalOut;
+  document.getElementById('req-clock-out-label').textContent = modalRecord.clock_out
+    ? '退勤時刻'
+    : '退勤時刻(まだ退勤前なら空欄でも申請できます)';
 
   const modalBg = document.getElementById('modal-bg');
   modalBg.dataset.originalIn = originalIn;
@@ -326,7 +329,13 @@ async function submitCorrection() {
   const outVal = document.getElementById('req-clock-out').value;
   const siteId = document.getElementById('req-site-select').value;
 
-  if (!inVal || !outVal) {
+  const isOngoing = !modalRecord.clock_out; // まだ退勤していない(出勤中)日か
+
+  if (!inVal) {
+    alert('出勤時刻を入力してください');
+    return;
+  }
+  if (!isOngoing && !outVal) {
     alert('出勤時刻・退勤時刻の両方を入力してください');
     return;
   }
