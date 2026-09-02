@@ -27,6 +27,7 @@ async function init() {
   loadMissingRequests();
   loadEmployees();
   loadTodayStatus();
+  loadPendingLeaveRequests();
 }
 
 const deptLabelStatus = { civil: '土木部', accounting: '経理部' };
@@ -611,6 +612,33 @@ async function exportAnnualSummary() {
 }
 
 const adminTypeLabel = { paid_leave: '有給休暇', business_trip: '出張' };
+const adminStageLabel = { manager: '部長承認待ち', director: '常務承認待ち' };
+
+async function loadPendingLeaveRequests() {
+  const { data: items, error } = await supabaseClient
+    .from('leave_requests')
+    .select('*, employees!leave_requests_employee_id_fkey(name)')
+    .eq('status', 'pending')
+    .order('start_date', { ascending: true });
+
+  if (error) { console.error(error); return; }
+
+  const tbody = document.getElementById('pending-leave-body');
+  if (items.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5">承認待ちの申請はありません</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = items.map(i => `
+    <tr>
+      <td>${i.employees ? i.employees.name : ''}</td>
+      <td>${adminTypeLabel[i.type] || i.type}</td>
+      <td>${i.start_date} 〜 ${i.end_date}</td>
+      <td>${i.days != null ? i.days : '-'}</td>
+      <td>${adminStageLabel[i.current_stage] || i.current_stage}</td>
+    </tr>
+  `).join('');
+}
 
 async function loadApprovedLeaveRequests() {
   const { data: items, error } = await supabaseClient
