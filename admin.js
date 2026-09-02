@@ -621,6 +621,8 @@ async function exportAnnualSummary() {
 const adminTypeLabel = { paid_leave: '有給休暇', business_trip: '出張' };
 const adminStageLabel = { manager: '部長承認待ち', director: '常務承認待ち' };
 
+let pendingLeaveItems = [];
+
 async function loadPendingLeaveRequests() {
   const { data: items, error } = await supabaseClient
     .from('leave_requests')
@@ -630,6 +632,7 @@ async function loadPendingLeaveRequests() {
 
   if (error) { console.error(error); return; }
 
+  pendingLeaveItems = items;
   setSummaryHighlight('pending-leave-summary', items.length > 0);
 
   const tbody = document.getElementById('pending-leave-body');
@@ -640,13 +643,46 @@ async function loadPendingLeaveRequests() {
 
   tbody.innerHTML = items.map(i => `
     <tr>
-      <td>${i.employees ? i.employees.name : ''}</td>
+      <td><button class="small" onclick="showLeaveDetail(${i.id})">${i.employees ? i.employees.name : ''}</button></td>
       <td>${adminTypeLabel[i.type] || i.type}</td>
       <td>${i.start_date} 〜 ${i.end_date}</td>
       <td>${i.days != null ? i.days : '-'}</td>
       <td>${adminStageLabel[i.current_stage] || i.current_stage}</td>
     </tr>
   `).join('');
+}
+
+function showLeaveDetail(id) {
+  const i = pendingLeaveItems.find(x => x.id === id);
+  if (!i) return;
+
+  document.getElementById('leave-detail-name').textContent =
+    `${i.employees ? i.employees.name : ''} さんの${adminTypeLabel[i.type] || i.type}申請`;
+
+  const rows = [
+    ['期間', `${i.start_date} 〜 ${i.end_date}`],
+    ['日数', i.days != null ? i.days : '-'],
+    ['現在の段階', adminStageLabel[i.current_stage] || i.current_stage],
+    ['事由', i.reason || '']
+  ];
+
+  if (i.type === 'business_trip') {
+    rows.push(['行き先', i.destination || '']);
+    rows.push(['交通機関', i.transportation || '']);
+    rows.push(['区分', i.zone === 'outside' ? '道外' : '道内']);
+    rows.push(['宿泊', i.hotel_needed ? '要' : '不要']);
+    if (i.total_amount != null) rows.push(['概算合計', `${i.total_amount}円`]);
+  }
+
+  document.getElementById('leave-detail-body').innerHTML = rows.map(([label, value]) => `
+    <tr><th>${label}</th><td>${value}</td></tr>
+  `).join('');
+
+  document.getElementById('leave-detail-modal-bg').style.display = 'flex';
+}
+
+function closeLeaveDetail() {
+  document.getElementById('leave-detail-modal-bg').style.display = 'none';
 }
 
 async function loadApprovedLeaveRequests() {
