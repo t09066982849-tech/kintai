@@ -320,7 +320,7 @@ async function loadMyRequests() {
 
   const tbody = document.getElementById('my-requests-body');
   if (items.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4">申請はまだありません</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5">申請はまだありません</td></tr>';
     return;
   }
 
@@ -331,7 +331,10 @@ async function loadMyRequests() {
     else statusText = stageLabel[i.current_stage] || i.current_stage;
 
     const canCancel = i.status === 'pending' && !i.manager_approved_by;
-    const cancelCell = canCancel ? `<button class="small" style="background:#dc2626" onclick="cancelMyRequest(${i.id})">取り消し</button>` : '-';
+    const canDelete = i.status === 'rejected';
+    let cancelCell = '-';
+    if (canCancel) cancelCell = `<button class="small" style="background:#dc2626" onclick="cancelMyRequest(${i.id})">取り消し</button>`;
+    else if (canDelete) cancelCell = `<button class="small" style="background:#dc2626" onclick="cancelMyRequest(${i.id}, true)">削除</button>`;
 
     return `<tr>
       <td>${typeLabel[i.type] || i.type}</td>
@@ -343,8 +346,9 @@ async function loadMyRequests() {
   }).join('');
 }
 
-async function cancelMyRequest(id) {
-  if (!confirm('この申請を取り消しますか？')) return;
+async function cancelMyRequest(id, isDelete) {
+  const message = isDelete ? 'この却下された申請を削除しますか？' : 'この申請を取り消しますか？';
+  if (!confirm(message)) return;
   const { error } = await supabaseClient.from('leave_requests').delete().eq('id', id);
   if (error) { alert('エラー: ' + error.message + '(すでに承認が始まっている場合は取り消せません)'); return; }
   loadMyRequests();
