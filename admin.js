@@ -1,5 +1,10 @@
 let employee = null;
 
+function setSummaryHighlight(id, hasItems) {
+  const el = document.getElementById(id);
+  if (el) el.style.color = hasItems ? '#dc2626' : '';
+}
+
 // 役員(社長・常務・伊豆倉鈴雄・大角賢一)は個人別の有給管理簿も無く、集計系の対象外
 const EXCLUDED_EXECUTIVE_IDS = [6, 7, 8, 9];
 
@@ -138,6 +143,8 @@ async function loadRequests() {
     .order('created_at', { ascending: true });
 
   if (error) { console.error(error); return; }
+
+  setSummaryHighlight('requests-summary', requests.length > 0);
 
   const tbody = document.getElementById('requests-body');
   if (requests.length === 0) {
@@ -623,6 +630,8 @@ async function loadPendingLeaveRequests() {
 
   if (error) { console.error(error); return; }
 
+  setSummaryHighlight('pending-leave-summary', items.length > 0);
+
   const tbody = document.getElementById('pending-leave-body');
   if (items.length === 0) {
     tbody.innerHTML = '<tr><td colspan="5">承認待ちの申請はありません</td></tr>';
@@ -648,6 +657,8 @@ async function loadApprovedLeaveRequests() {
     .order('start_date', { ascending: false });
 
   if (error) { console.error(error); return; }
+
+  setSummaryHighlight('approved-leave-summary', items.length > 0);
 
   const tbody = document.getElementById('approved-leave-body');
   if (items.length === 0) {

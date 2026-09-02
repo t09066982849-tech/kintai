@@ -29,7 +29,7 @@
   <button style="background:#9ca3af" onclick="logout()">ログアウト</button>
 
   <details open>
-    <summary>修正申請一覧(申請中)</summary>
+    <summary id="requests-summary">修正申請一覧(申請中)</summary>
     <table>
       <thead><tr><th>従業員</th><th>日付</th><th>現在の現場</th><th>現在の出勤</th><th>現在の退勤</th><th>希望の現場</th><th>希望の出勤</th><th>希望の退勤</th><th>操作</th></tr></thead>
       <tbody id="requests-body"></tbody>
@@ -71,7 +71,7 @@
   </details>
 
   <details>
-    <summary>有給・出張申請(承認待ち)</summary>
+    <summary id="pending-leave-summary">有給・出張申請(承認待ち)</summary>
     <table>
       <thead><tr><th>従業員</th><th>種類</th><th>期間</th><th>日数</th><th>現在の段階</th></tr></thead>
       <tbody id="pending-leave-body"></tbody>
@@ -79,7 +79,7 @@
   </details>
 
   <details>
-    <summary>承認済み申請書類</summary>
+    <summary id="approved-leave-summary">承認済み申請書類</summary>
     <table>
       <thead><tr><th>従業員</th><th>種類</th><th>期間</th><th>操作</th></tr></thead>
       <tbody id="approved-leave-body"></tbody>
