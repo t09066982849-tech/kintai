@@ -282,6 +282,19 @@ async function approveRequest(id) {
     .single();
   if (error) { alert('エラー: ' + error.message); return; }
 
+  if (request.status !== 'pending') {
+    alert('この申請はすでに処理済みです。画面を更新します。');
+    loadApprovalList();
+    return;
+  }
+
+  const requiredRole = requiredRoleForStage(request.current_stage, request.employees.department);
+  if (employee.role !== requiredRole) {
+    alert('この段階の承認権限がありません(すでに他の方が承認済みか、承認段階が進んでいる可能性があります)。画面を更新します。');
+    loadApprovalList();
+    return;
+  }
+
   let current = await advanceStage(request, employee.id, false);
 
   let guard = 0;

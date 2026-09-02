@@ -2,6 +2,15 @@ const supabaseUrl = 'https://clymwlhxnkpwukuoblga.supabase.co';
 const supabaseKey = 'sb_publishable_npAygzNwa6ERwIRUpHabHA_Djm_BFNu';
 const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
+// 連打防止:ボタンを押した瞬間に一旦無効化する(一覧系のボタンは再描画で自然に解除される)。
+// 通信遅延などで解除が来ないケースに備え、念のため一定時間後にも自動で戻す。
+document.addEventListener('click', function (e) {
+  const btn = e.target.closest('button');
+  if (!btn || btn.disabled) return;
+  btn.disabled = true;
+  setTimeout(() => { btn.disabled = false; }, 1500);
+}, true);
+
 async function login() {
   const email = document.getElementById('email').value;
   const password = document.getElementById('password').value;
