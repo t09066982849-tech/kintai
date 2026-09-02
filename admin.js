@@ -760,12 +760,13 @@ async function createEmployee() {
   const name = document.getElementById('new-emp-name').value.trim();
   const email = document.getElementById('new-emp-email').value.trim();
   const password = document.getElementById('new-emp-password').value;
+  const hireDate = document.getElementById('new-emp-hire-date').value;
   const department = document.getElementById('new-emp-department').value;
   const msg = document.getElementById('create-emp-message');
 
-  if (!name || !email || !password) {
+  if (!name || !email || !password || !hireDate) {
     msg.style.color = 'red';
-    msg.textContent = '氏名・メールアドレス・パスワードは必須です';
+    msg.textContent = '氏名・メールアドレス・パスワード・入社日は必須です';
     return;
   }
 
@@ -775,7 +776,7 @@ async function createEmployee() {
   const { data: { session } } = await supabaseClient.auth.getSession();
 
   const { data, error } = await supabaseClient.functions.invoke('create-employee', {
-    body: { name, email, password, department },
+    body: { name, email, password, department, hire_date: hireDate },
     headers: { Authorization: `Bearer ${session.access_token}` }
   });
 
@@ -790,6 +791,7 @@ async function createEmployee() {
   document.getElementById('new-emp-name').value = '';
   document.getElementById('new-emp-email').value = '';
   document.getElementById('new-emp-password').value = '';
+  document.getElementById('new-emp-hire-date').value = '';
   loadEmployees();
 }
 
