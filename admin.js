@@ -710,6 +710,7 @@ async function loadApprovedLeaveRequests() {
       <td>
         <a href="document.html?id=${i.id}" target="_blank">書類を見る</a>
         <button class="small" style="background:#dc2626" onclick="deleteLeaveRequestAdmin(${i.id})">削除</button>
+        <button class="small" style="background:#9ca3af" onclick="cancelApprovedLeave(${i.id})">取り消し</button>
       </td>
     </tr>
   `).join('');
@@ -721,6 +722,44 @@ async function deleteLeaveRequestAdmin(id) {
 
   const { error } = await supabaseClient.from('leave_requests').delete().eq('id', id);
   if (error) { alert('エラー: ' + error.message); return; }
+  loadApprovedLeaveRequests();
+}
+
+// 承認済みの有給・出張を無かったことにする(申請書類自体は消さない)。
+// スケジュールの予定を削除し、有給休暇だった場合は残日数を足し戻す。
+async function cancelApprovedLeave(id) {
+  if (!confirm('この申請を取り消しますか？(有給休暇の場合は残日数が戻ります。スケジュールの予定と申請書類自体も削除されます)')) return;
+
+  const { data: request, error: fetchError } = await supabaseClient
+    .from('leave_requests')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (fetchError) { alert('エラー: ' + fetchError.message); return; }
+
+  const { error: scheduleError } = await supabaseClient.from('schedules').delete().eq('leave_request_id', id);
+  if (scheduleError) { alert('エラー(スケジュール削除): ' + scheduleError.message); return; }
+
+  if (request.type === 'paid_leave') {
+    const { data: emp, error: empError } = await supabaseClient
+      .from('employees')
+      .select('paid_leave_balance')
+      .eq('id', request.employee_id)
+      .single();
+    if (empError) { alert('エラー(従業員取得): ' + empError.message); return; }
+
+    const newBalance = Number(emp.paid_leave_balance) + Number(request.days);
+    const { error: balanceError } = await supabaseClient
+      .from('employees')
+      .update({ paid_leave_balance: newBalance })
+      .eq('id', request.employee_id);
+    if (balanceError) { alert('エラー(残日数の更新): ' + balanceError.message); return; }
+  }
+
+  const { error: deleteError } = await supabaseClient.from('leave_requests').delete().eq('id', id);
+  if (deleteError) { alert('エラー(申請書類の削除): ' + deleteError.message); return; }
+
+  alert('取り消しました(スケジュールの予定を削除' + (request.type === 'paid_leave' ? '、残日数を足し戻し' : '') + '、申請書類も削除しました)。');
   loadApprovedLeaveRequests();
 }
 

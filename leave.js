@@ -270,7 +270,8 @@ async function reflectToSchedule(request) {
     date: request.start_date,
     end_date: request.end_date !== request.start_date ? request.end_date : null,
     type: scheduleType,
-    title: title
+    title: title,
+    leave_request_id: request.id
   });
 }
 
