@@ -240,7 +240,7 @@ function openEventView(evt, id) {
   const timeStr = (item.start_time && item.end_time) ? `時刻: ${item.start_time.slice(0,5)}〜${item.end_time.slice(0,5)}` : '終日';
   document.getElementById('view-time').textContent = timeStr;
 
-  const canEdit = employee && (item.employee_id === employee.id || employee.is_admin);
+  const canEdit = item.type === 'event' && employee && (item.employee_id === employee.id || employee.is_admin);
   document.getElementById('view-edit-btn').style.display = canEdit ? 'block' : 'none';
   document.getElementById('view-delete-btn').style.display = canEdit ? 'block' : 'none';
 
