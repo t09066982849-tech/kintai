@@ -11,6 +11,13 @@ function seal(fullName, small) {
   return `<div class="${small ? 'seal-sm' : 'seal'}">${sealName(fullName)}</div>`;
 }
 
+// タイムスタンプ(UTC)をJST基準の日付(YYYY-MM-DD)に変換する
+function jstDateOnly(iso) {
+  if (!iso) return '';
+  const d = new Date(new Date(iso).getTime() + 9 * 60 * 60 * 1000);
+  return d.toISOString().slice(0, 10);
+}
+
 async function loadDocument() {
   const params = new URLSearchParams(location.search);
   const id = params.get('id');
@@ -62,6 +69,7 @@ function renderPaidLeave(req, nameById, deptText, managerLabel) {
     </div>
     <table>
       <tr><th>所属</th><td>${deptText}</td></tr>
+      <tr><th>申請日</th><td>${jstDateOnly(req.created_at)}</td></tr>
       <tr><th>氏名</th><td>${req.employees.name}</td></tr>
       <tr><th>期間</th><td>${req.start_date} より ${req.end_date} まで(${req.days}日間)</td></tr>
       <tr><th>事由</th><td>${req.reason || ''}</td></tr>
@@ -86,6 +94,7 @@ function renderBusinessTrip(req, nameById, deptText, managerLabel) {
       </table>
     </div>
     <table class="multi-col">
+      <tr><th>申請日</th><td colspan="5">${jstDateOnly(req.created_at)}</td></tr>
       <tr><th>氏名</th><td>${req.employees.name}</td><th>所属</th><td>${deptText}</td><th></th><td></td></tr>
       <tr><th>期間</th><td>${req.start_date} 〜 ${req.end_date}(${req.days}日間)</td><th>行き先</th><td>${req.destination || ''}</td><th>用件</th><td>${req.reason || ''}</td></tr>
       <tr><th>交通機関</th><td>${req.transportation || ''}</td><th>宿泊</th><td>${req.hotel_needed ? '要' : '不要'}</td><th>区分</th><td>${zoneLabel}</td></tr>
