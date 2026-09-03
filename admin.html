@@ -81,9 +81,13 @@
   <details>
     <summary>現場管理</summary>
     <input id="new-site-name" placeholder="現場名">
+    <label>勤務開始時刻</label>
+    <input id="new-site-work-start" type="time" value="07:00">
+    <label>勤務終了時刻</label>
+    <input id="new-site-work-end" type="time" value="17:00">
     <button onclick="addSite()">追加</button>
     <table>
-      <thead><tr><th>現場名</th><th>状態</th><th>操作</th></tr></thead>
+      <thead><tr><th>現場名</th><th>勤務時間</th><th>状態</th><th>操作</th></tr></thead>
       <tbody id="sites-body"></tbody>
     </table>
   </details>
@@ -125,6 +129,20 @@
       <tbody id="employee-detail-body"></tbody>
     </table>
     <button style="background:#9ca3af" onclick="closeEmployeeDetail()">閉じる</button>
+  </div>
+</div>
+
+<div class="modal-bg" id="site-edit-modal-bg">
+  <div class="modal">
+    <h3>現場を編集</h3>
+    <label>現場名</label>
+    <input id="edit-site-name">
+    <label>勤務開始時刻</label>
+    <input id="edit-site-work-start" type="time">
+    <label>勤務終了時刻</label>
+    <input id="edit-site-work-end" type="time">
+    <button onclick="saveSiteEdit()">保存</button>
+    <button style="background:#9ca3af" onclick="closeSiteEditModal()">閉じる</button>
   </div>
 </div>
 

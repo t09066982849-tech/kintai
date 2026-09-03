@@ -257,6 +257,7 @@ async function loadSites() {
   tbody.innerHTML = sites.map(s => `
     <tr>
       <td>${s.name}</td>
+      <td>${(s.work_start || '07:00:00').slice(0, 5)} 〜 ${(s.work_end || '17:00:00').slice(0, 5)}</td>
       <td>${s.is_active ? '<span class="status-approved">有効</span>' : '<span class="status-rejected">無効</span>'}</td>
       <td>
         <button class="small" onclick="editSite(${s.id})">編集</button>
@@ -270,24 +271,49 @@ async function loadSites() {
   `).join('');
 }
 
+let editingSiteId = null;
+
 async function editSite(id) {
-  const { data: site, error } = await supabaseClient.from('sites').select('name').eq('id', id).single();
+  const { data: site, error } = await supabaseClient.from('sites').select('name, work_start, work_end').eq('id', id).single();
   if (error) { alert('エラー: ' + error.message); return; }
 
-  const newName = prompt('新しい現場名を入力してください', site.name);
-  if (!newName || !newName.trim() || newName.trim() === site.name) return;
+  editingSiteId = id;
+  document.getElementById('edit-site-name').value = site.name;
+  document.getElementById('edit-site-work-start').value = (site.work_start || '07:00:00').slice(0, 5);
+  document.getElementById('edit-site-work-end').value = (site.work_end || '17:00:00').slice(0, 5);
+  document.getElementById('site-edit-modal-bg').style.display = 'flex';
+}
 
-  const { error: updateError } = await supabaseClient.from('sites').update({ name: newName.trim() }).eq('id', id);
-  if (updateError) { alert('エラー: ' + updateError.message); return; }
+function closeSiteEditModal() {
+  document.getElementById('site-edit-modal-bg').style.display = 'none';
+  editingSiteId = null;
+}
+
+async function saveSiteEdit() {
+  const name = document.getElementById('edit-site-name').value.trim();
+  const workStart = document.getElementById('edit-site-work-start').value;
+  const workEnd = document.getElementById('edit-site-work-end').value;
+  if (!name || !workStart || !workEnd) { alert('すべて入力してください'); return; }
+
+  const { error } = await supabaseClient.from('sites')
+    .update({ name, work_start: workStart, work_end: workEnd })
+    .eq('id', editingSiteId);
+  if (error) { alert('エラー: ' + error.message); return; }
+
+  closeSiteEditModal();
   loadSites();
 }
 
 async function addSite() {
   const name = document.getElementById('new-site-name').value.trim();
+  const workStart = document.getElementById('new-site-work-start').value || '07:00';
+  const workEnd = document.getElementById('new-site-work-end').value || '17:00';
   if (!name) return;
-  const { error } = await supabaseClient.from('sites').insert({ name });
+  const { error } = await supabaseClient.from('sites').insert({ name, work_start: workStart, work_end: workEnd });
   if (error) { alert('エラー: ' + error.message); return; }
   document.getElementById('new-site-name').value = '';
+  document.getElementById('new-site-work-start').value = '07:00';
+  document.getElementById('new-site-work-end').value = '17:00';
   loadSites();
 }
 
