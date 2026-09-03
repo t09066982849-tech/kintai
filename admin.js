@@ -29,7 +29,6 @@ async function init() {
   loadRequests();
   loadSites();
   loadApprovedLeaveRequests();
-  loadMissingRequests();
   loadEmployees();
   loadTodayStatus();
   loadPendingLeaveRequests();
@@ -136,45 +135,81 @@ function closeEmployeeDetail() {
 }
 
 async function loadRequests() {
-  const { data: requests, error } = await supabaseClient
-    .from('correction_requests')
-    .select('*, employees(name), time_records(date, clock_in, clock_out, site_id, sites(name)), requested_site:sites!correction_requests_requested_site_id_fkey(name)')
-    .eq('status', 'pending')
-    .order('created_at', { ascending: true });
+  const [correctionsRes, missingRes] = await Promise.all([
+    supabaseClient
+      .from('correction_requests')
+      .select('*, employees(name), time_records(date, clock_in, clock_out, site_id, sites(name)), requested_site:sites!correction_requests_requested_site_id_fkey(name)')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true }),
+    supabaseClient
+      .from('missing_record_requests')
+      .select('*, employees!missing_record_requests_employee_id_fkey(name), sites(name)')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true })
+  ]);
 
-  if (error) { console.error(error); return; }
+  if (correctionsRes.error) { console.error(correctionsRes.error); return; }
+  if (missingRes.error) { console.error(missingRes.error); return; }
 
-  setSummaryHighlight('requests-summary', requests.length > 0);
+  const combined = [
+    ...correctionsRes.data.map(r => ({ kind: 'correction', createdAt: r.created_at, row: r })),
+    ...missingRes.data.map(i => ({ kind: 'missing', createdAt: i.created_at, row: i }))
+  ].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+  setSummaryHighlight('requests-summary', combined.length > 0);
 
   const tbody = document.getElementById('requests-body');
-  if (requests.length === 0) {
+  if (combined.length === 0) {
     tbody.innerHTML = '<tr><td colspan="9">申請中の項目はありません</td></tr>';
     return;
   }
 
-  tbody.innerHTML = requests.map(r => `
-    <tr>
-      <td>${r.employees.name}</td>
-      <td>${r.time_records.date}</td>
-      <td>${r.time_records.sites ? r.time_records.sites.name : '-'}</td>
-      <td>${fmtTime(r.time_records.clock_in)}</td>
-      <td>${fmtTime(r.time_records.clock_out)}</td>
-      ${r.is_deletion ? `
-      <td colspan="3" style="color:#dc2626">削除希望</td>
-      ` : `
-      <td>${r.requested_site ? r.requested_site.name : '-'}</td>
-      <td>${fmtTime(r.requested_clock_in)}</td>
-      <td>${fmtTime(r.requested_clock_out)}</td>
-      `}
-      <td>
-        ${r.is_deletion
-          ? `<button class="small" style="background:#dc2626" onclick="approveDeletion(${r.id}, ${r.time_record_id})">承認(削除)</button>`
-          : `<button class="small" onclick="approve(${r.id}, ${r.time_record_id}, '${r.requested_clock_in || ''}', '${r.requested_clock_out || ''}', ${r.requested_site_id || 'null'})">承認</button>`
-        }
-        <button class="small" style="background:#9ca3af" onclick="reject(${r.id})">却下</button>
-      </td>
-    </tr>
-  `).join('');
+  tbody.innerHTML = combined.map(entry => {
+    if (entry.kind === 'correction') {
+      const r = entry.row;
+      return `
+        <tr>
+          <td>${r.employees.name}</td>
+          <td>${r.time_records.date}</td>
+          <td>${r.time_records.sites ? r.time_records.sites.name : '-'}</td>
+          <td>${fmtTime(r.time_records.clock_in)}</td>
+          <td>${fmtTime(r.time_records.clock_out)}</td>
+          ${r.is_deletion ? `
+          <td colspan="3" style="color:#dc2626">削除希望</td>
+          ` : `
+          <td>${r.requested_site ? r.requested_site.name : '-'}</td>
+          <td>${fmtTime(r.requested_clock_in)}</td>
+          <td>${fmtTime(r.requested_clock_out)}</td>
+          `}
+          <td>
+            ${r.is_deletion
+              ? `<button class="small" style="background:#dc2626" onclick="approveDeletion(${r.id}, ${r.time_record_id})">承認(削除)</button>`
+              : `<button class="small" onclick="approve(${r.id}, ${r.time_record_id}, '${r.requested_clock_in || ''}', '${r.requested_clock_out || ''}', ${r.requested_site_id || 'null'})">承認</button>`
+            }
+            <button class="small" style="background:#9ca3af" onclick="reject(${r.id})">却下</button>
+          </td>
+        </tr>
+      `;
+    }
+
+    const i = entry.row;
+    return `
+      <tr>
+        <td>${i.employees ? i.employees.name : ''}</td>
+        <td>${i.date}</td>
+        <td>-</td>
+        <td>-</td>
+        <td>-</td>
+        <td>${i.sites ? i.sites.name : ''}</td>
+        <td>${i.requested_clock_in ? i.requested_clock_in.slice(0, 5) : ''}</td>
+        <td>${i.requested_clock_out ? i.requested_clock_out.slice(0, 5) : '-'}</td>
+        <td>
+          <button class="small" onclick="approveMissingRequest(${i.id})">承認</button>
+          <button class="small" style="background:#9ca3af" onclick="rejectMissingRequest(${i.id})">却下</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
 }
 
 async function approveDeletion(requestId, timeRecordId) {
@@ -763,36 +798,6 @@ async function cancelApprovedLeave(id) {
   loadApprovedLeaveRequests();
 }
 
-async function loadMissingRequests() {
-  const { data: items, error } = await supabaseClient
-    .from('missing_record_requests')
-    .select('*, employees!missing_record_requests_employee_id_fkey(name), sites(name)')
-    .eq('status', 'pending')
-    .order('date', { ascending: true });
-
-  if (error) { console.error(error); return; }
-
-  const tbody = document.getElementById('missing-requests-body');
-  if (items.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6">申請中の項目はありません</td></tr>';
-    return;
-  }
-
-  tbody.innerHTML = items.map(i => `
-    <tr>
-      <td>${i.employees ? i.employees.name : ''}</td>
-      <td>${i.date}</td>
-      <td>${i.sites ? i.sites.name : ''}</td>
-      <td>${i.requested_clock_in ? i.requested_clock_in.slice(0,5) : ''}</td>
-      <td>${i.requested_clock_out ? i.requested_clock_out.slice(0,5) : '-'}</td>
-      <td>
-        <button class="small" onclick="approveMissingRequest(${i.id})">承認</button>
-        <button class="small" style="background:#9ca3af" onclick="rejectMissingRequest(${i.id})">却下</button>
-      </td>
-    </tr>
-  `).join('');
-}
-
 async function approveMissingRequest(id) {
   const { data: req, error: fetchError } = await supabaseClient
     .from('missing_record_requests')
@@ -819,7 +824,7 @@ async function approveMissingRequest(id) {
     .eq('id', id);
   if (updateError) { alert('エラー: ' + updateError.message); return; }
 
-  loadMissingRequests();
+  loadRequests();
 }
 
 async function rejectMissingRequest(id) {
@@ -828,7 +833,7 @@ async function rejectMissingRequest(id) {
     .update({ status: 'rejected', reviewed_at: new Date().toISOString() })
     .eq('id', id);
   if (error) { alert('エラー: ' + error.message); return; }
-  loadMissingRequests();
+  loadRequests();
 }
 
 async function createEmployee() {
