@@ -11,6 +11,12 @@ function requiredRoleForStage(stage, department) {
   return null;
 }
 
+async function viewAttachment(path) {
+  const { data, error } = await supabaseClient.storage.from('leave-attachments').createSignedUrl(path, 3600);
+  if (error || !data) { alert('添付ファイルを開けませんでした: ' + (error ? error.message : '')); return; }
+  window.open(data.signedUrl, '_blank');
+}
+
 // 承認フェーズ通知メールを呼び出す(失敗しても申請・承認の処理自体は止めない)
 async function notifyApprovalStage(requestId) {
   try {
@@ -129,9 +135,25 @@ async function submitRequest() {
 
   if (error) { alert('エラー: ' + error.message); return; }
 
+  if (type === 'business_trip') {
+    const fileInput = document.getElementById('new-attachment');
+    const file = fileInput.files[0];
+    if (file) {
+      const safeName = file.name.replace(/[^\w.\-]/g, '_');
+      const path = `${employee.id}/${data.id}_${safeName}`;
+      const { error: uploadError } = await supabaseClient.storage.from('leave-attachments').upload(path, file);
+      if (uploadError) {
+        alert('添付ファイルのアップロードに失敗しました(申請自体は完了しています): ' + uploadError.message);
+      } else {
+        await supabaseClient.from('leave_requests').update({ attachment_path: path }).eq('id', data.id);
+      }
+    }
+    fileInput.value = '';
+  }
+
   document.getElementById('new-start').value = '';
   document.getElementById('new-end').value = '';
-  document.getElementById('new-days').value = '';
+  document.getElementById('new-days').value = '1';
   document.getElementById('new-reason').value = '';
   document.getElementById('new-contact').value = '';
   document.getElementById('new-destination').value = '';
@@ -193,7 +215,7 @@ async function loadApprovalList() {
       <td>${typeLabel[i.type] || i.type}</td>
       <td>${i.start_date} 〜 ${i.end_date}</td>
       <td>${i.days}</td>
-      <td>${detail}</td>
+      <td>${detail}${i.attachment_path ? ` <button class="small" onclick="viewAttachment('${i.attachment_path}')">添付を見る</button>` : ''}</td>
       <td>
         <button class="small" onclick="approveRequest(${i.id})">承認</button>
         <button class="small" style="background:#dc2626" onclick="rejectRequest(${i.id})">却下</button>
@@ -334,7 +356,7 @@ async function loadMyRequests() {
 
   const tbody = document.getElementById('my-requests-body');
   if (items.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5">申請はまだありません</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6">申請はまだありません</td></tr>';
     return;
   }
 
@@ -350,11 +372,16 @@ async function loadMyRequests() {
     if (canCancel) cancelCell = `<button class="small" style="background:#dc2626" onclick="cancelMyRequest(${i.id})">取り消し</button>`;
     else if (canDelete) cancelCell = `<button class="small" style="background:#dc2626" onclick="cancelMyRequest(${i.id}, true)">削除</button>`;
 
+    const attachmentCell = i.attachment_path
+      ? `<button class="small" onclick="viewAttachment('${i.attachment_path}')">見る</button>`
+      : '-';
+
     return `<tr>
       <td>${typeLabel[i.type] || i.type}</td>
       <td>${i.start_date} 〜 ${i.end_date}</td>
       <td>${i.days}</td>
       <td>${statusText}</td>
+      <td>${attachmentCell}</td>
       <td>${cancelCell}</td>
     </tr>`;
   }).join('');

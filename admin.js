@@ -1,5 +1,11 @@
 let employee = null;
 
+async function viewAttachment(path) {
+  const { data, error } = await supabaseClient.storage.from('leave-attachments').createSignedUrl(path, 3600);
+  if (error || !data) { alert('添付ファイルを開けませんでした: ' + (error ? error.message : '')); return; }
+  window.open(data.signedUrl, '_blank');
+}
+
 function setSummaryHighlight(id, hasItems) {
   const el = document.getElementById(id);
   if (el) el.style.color = hasItems ? '#dc2626' : '';
@@ -733,6 +739,7 @@ function showLeaveDetail(id) {
     rows.push(['区分', i.zone === 'outside' ? '道外' : '道内']);
     rows.push(['宿泊', i.hotel_needed ? '要' : '不要']);
     if (i.total_amount != null) rows.push(['概算合計', `${i.total_amount}円`]);
+    if (i.attachment_path) rows.push(['添付', `<button class="small" onclick="viewAttachment('${i.attachment_path}')">見る</button>`]);
   }
 
   document.getElementById('leave-detail-body').innerHTML = rows.map(([label, value]) => `
@@ -770,6 +777,7 @@ async function loadApprovedLeaveRequests() {
       <td>${i.start_date} 〜 ${i.end_date}</td>
       <td>
         <a href="document.html?id=${i.id}" target="_blank">書類を見る</a>
+        ${i.attachment_path ? `<button class="small" onclick="viewAttachment('${i.attachment_path}')">添付を見る</button>` : ''}
         <button class="small" style="background:#dc2626" onclick="deleteLeaveRequestAdmin(${i.id})">削除</button>
         <button class="small" style="background:#9ca3af" onclick="cancelApprovedLeave(${i.id})">取り消し</button>
       </td>
