@@ -45,10 +45,61 @@ async function init() {
   updateClock();
   setInterval(updateClock, 1000);
 
+  loadWeather();
+
   setInterval(refreshTodayStatus, 60000);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) refreshTodayStatus();
   });
+}
+
+const WEATHER_ICON = {
+  0: '☀️', 1: '🌤️', 2: '⛅', 3: '☁️',
+  45: '🌫️', 48: '🌫️',
+  51: '🌦️', 53: '🌦️', 55: '🌦️',
+  61: '🌧️', 63: '🌧️', 65: '🌧️',
+  71: '🌨️', 73: '🌨️', 75: '🌨️',
+  80: '🌦️', 81: '🌧️', 82: '🌧️',
+  95: '⛈️', 96: '⛈️', 99: '⛈️'
+};
+const WEATHER_LABEL = {
+  0: '晴れ', 1: '晴れ', 2: '曇り', 3: '曇り',
+  45: '霧', 48: '霧',
+  51: '小雨', 53: '雨', 55: '雨',
+  61: '雨', 63: '雨', 65: '大雨',
+  71: '雪', 73: '雪', 75: '大雪',
+  80: 'にわか雨', 81: 'にわか雨', 82: '大雨',
+  95: '雷雨', 96: '雷雨', 99: '雷雨'
+};
+
+async function loadWeather() {
+  const widget = document.getElementById('weather-widget');
+  if (!widget) return;
+
+  const pos = await getPosition();
+  if (!pos) return;
+
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${pos.lat}&longitude=${pos.lng}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FTokyo`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!data.daily) return;
+
+    const code = data.daily.weather_code[0];
+    const icon = WEATHER_ICON[code] || '';
+    const label = WEATHER_LABEL[code] || '';
+    const maxTemp = Math.round(data.daily.temperature_2m_max[0]);
+    const minTemp = Math.round(data.daily.temperature_2m_min[0]);
+    const precipProb = data.daily.precipitation_probability_max ? data.daily.precipitation_probability_max[0] : null;
+
+    widget.innerHTML = `
+      <div>${icon} ${label}</div>
+      <div>最高<span style="color:#dc2626">${maxTemp}℃</span> / 最低<span style="color:#2563eb">${minTemp}℃</span></div>
+      ${precipProb != null ? `<div>降水確率${precipProb}%</div>` : ''}
+    `;
+  } catch (e) {
+    console.error('天気の取得に失敗しました', e);
+  }
 }
 
 function updateClock() {
