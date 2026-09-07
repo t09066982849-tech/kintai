@@ -69,6 +69,13 @@ async function requireEmployee() {
 
   return emp;
 }
+// 秒・ミリ秒を切り捨てた現在時刻のISO文字列を返す(打刻の記録に秒は不要なため)
+function nowMinuteIso() {
+  const d = new Date();
+  d.setSeconds(0, 0);
+  return d.toISOString();
+}
+
 // 日本時間での「今日の日付」を文字列で返す(UTCではなくJSTで計算する)
 function getJSTDateStr() {
   const now = new Date();
@@ -77,7 +84,7 @@ function getJSTDateStr() {
 }
 
 // 出退勤時刻を、現場の所定時間(work_start/work_end)を基準に補正する。
-// 早出・残業は最大1時間まで認め、それを超える分は所定時刻+-1時間で打ち切る。
+// 早出は最大30分、残業は最大1時間まで認め、それを超える分は所定時刻-30分/+1時間で打ち切る。
 // 遅刻・早上がりはそのまま(補正しない)。
 // 勤務時間は現場ごとの休憩時間(break_minutes)を差し引いた実労働時間。
 function computeDayMetrics(dateStr, clockIn, clockOut, workStart, workEnd, breakMinutes) {
@@ -85,7 +92,7 @@ function computeDayMetrics(dateStr, clockIn, clockOut, workStart, workEnd, break
   const endStr = (workEnd || '17:00').slice(0, 5);
   const scheduledStart = new Date(dateStr + 'T' + startStr + ':00+09:00');
   const scheduledEnd = new Date(dateStr + 'T' + endStr + ':00+09:00');
-  const earlyCap = new Date(scheduledStart.getTime() - 60 * 60000);
+  const earlyCap = new Date(scheduledStart.getTime() - 30 * 60000);
   const lateCap = new Date(scheduledEnd.getTime() + 60 * 60000);
 
   let adjustedIn = clockIn ? new Date(clockIn) : null;
@@ -99,8 +106,8 @@ function computeDayMetrics(dateStr, clockIn, clockOut, workStart, workEnd, break
   if (adjustedIn && adjustedOut) {
     const rawMinutes = Math.round((adjustedOut - adjustedIn) / 60000);
     workMinutes = Math.max(0, rawMinutes - (breakMinutes || 0));
-    const scheduledMinutes = Math.round((scheduledEnd - scheduledStart) / 60000);
-    overtimeMinutes = Math.max(0, rawMinutes - scheduledMinutes);
+    // 残業は労基法の法定労働時間(1日8時間=480分)を実労働時間が超えた分
+    overtimeMinutes = Math.max(0, workMinutes - 480);
   }
 
   return { adjustedIn, adjustedOut, workMinutes, overtimeMinutes, scheduledStart, scheduledEnd, earlyCap, lateCap };
@@ -115,4 +122,13 @@ function formatMinutesJa(mins) {
 function formatTimeJa(date) {
   if (!date) return '-';
   return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+}
+
+// 実際の打刻時刻(黒)と補正後の時刻(赤)を2段で表示するセル用HTML。
+// 補正がかかっていない(同じ時刻の)場合は1段のみ表示する。
+function timeCellHtml(rawDate, adjustedDate) {
+  const raw = formatTimeJa(rawDate);
+  const adjusted = formatTimeJa(adjustedDate);
+  if (raw === adjusted) return raw;
+  return `<div>${raw}</div><div style="color:#dc2626">${adjusted}</div>`;
 }

@@ -170,6 +170,15 @@ async function submitRequest() {
 
 async function autoSkipIfSelf(request) {
   let current = request;
+
+  // 常務(承認フロー最上位、社長は既に除外済み)本人の申請は、承認できる人がいないため
+  // 部長段階も含めて全段階を自動で承認済みにする
+  if (employee.role === 'director') {
+    current = await advanceStage(current, employee.id, true); // 部長段階 → 常務段階
+    current = await advanceStage(current, employee.id, true); // 常務段階 → 完了
+    return;
+  }
+
   let guard = 0;
   while (current.status === 'pending' && guard < 5) {
     guard++;

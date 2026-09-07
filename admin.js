@@ -58,7 +58,7 @@ async function loadTodayStatus() {
 
   const { data: records, error } = await supabaseClient
     .from('time_records')
-    .select('employee_id, clock_in, clock_out, sites(name)')
+    .select('employee_id, clock_in, clock_out, sites(name, work_start, work_end, break_minutes)')
     .eq('date', today);
   if (error) { console.error(error); return; }
 
@@ -72,13 +72,18 @@ async function loadTodayStatus() {
     if (r && r.clock_in && !r.clock_out) status = 'working';
     else if (r && r.clock_in && r.clock_out) status = 'done';
 
+    const workStart = r && r.sites ? r.sites.work_start : null;
+    const workEnd = r && r.sites ? r.sites.work_end : null;
+    const workBreak = r && r.sites ? r.sites.break_minutes : null;
+    const metrics = r ? computeDayMetrics(today, r.clock_in, r.clock_out, workStart, workEnd, workBreak) : null;
+
     return `
       <tr>
         <td><button class="small" onclick="showEmployeeDetail(${emp.id}, '${emp.name.replace(/'/g, "\\'")}')">${emp.name}</button></td>
         <td>${deptLabelStatus[emp.department] || emp.department || ''}</td>
         <td>${r && r.sites ? r.sites.name : '-'}</td>
-        <td>${formatTimeJa(r && r.clock_in ? new Date(r.clock_in) : null)}</td>
-        <td>${formatTimeJa(r && r.clock_out ? new Date(r.clock_out) : null)}</td>
+        <td>${r ? timeCellHtml(r.clock_in ? new Date(r.clock_in) : null, metrics.adjustedIn) : '-'}</td>
+        <td>${r ? timeCellHtml(r.clock_out ? new Date(r.clock_out) : null, metrics.adjustedOut) : '-'}</td>
         <td><span class="${statusClass[status]}">${statusLabel[status]}</span></td>
       </tr>
     `;
@@ -124,8 +129,8 @@ async function showEmployeeDetail(employeeId, employeeName) {
         <tr>
           <td>${r.date}</td>
           <td>${r.sites ? r.sites.name : '-'}</td>
-          <td>${formatTimeJa(metrics.adjustedIn)}</td>
-          <td>${formatTimeJa(metrics.adjustedOut)}</td>
+          <td>${timeCellHtml(r.clock_in ? new Date(r.clock_in) : null, metrics.adjustedIn)}</td>
+          <td>${timeCellHtml(r.clock_out ? new Date(r.clock_out) : null, metrics.adjustedOut)}</td>
           <td>${workTime}</td>
           <td>${overtimeTime}</td>
         </tr>

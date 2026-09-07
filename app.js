@@ -212,8 +212,8 @@ async function loadHistory() {
     const workBreak = r.sites ? r.sites.break_minutes : null;
     const metrics = computeDayMetrics(r.date, r.clock_in, r.clock_out, workStart, workEnd, workBreak);
 
-    const inTime = formatTimeJa(metrics.adjustedIn);
-    const outTime = formatTimeJa(metrics.adjustedOut);
+    const inTime = timeCellHtml(r.clock_in ? new Date(r.clock_in) : null, metrics.adjustedIn);
+    const outTime = timeCellHtml(r.clock_out ? new Date(r.clock_out) : null, metrics.adjustedOut);
     const workTime = metrics.workMinutes != null ? formatMinutesJa(metrics.workMinutes) : '-';
 
     if (metrics.workMinutes != null) totalOvertimeMinutes += metrics.overtimeMinutes;
@@ -408,7 +408,7 @@ async function clockIn() {
     employee_id: employee.id,
     date: today,
     site_id: siteId,
-    clock_in: new Date().toISOString(),
+    clock_in: nowMinuteIso(),
     clock_in_lat: pos ? pos.lat : null,
     clock_in_lng: pos ? pos.lng : null
   }).select('*, sites(work_start, work_end, break_minutes)').single();
@@ -426,7 +426,7 @@ async function clockOut() {
 
   const pos = await getPosition();
   const { data, error } = await supabaseClient.from('time_records').update({
-    clock_out: new Date().toISOString(),
+    clock_out: nowMinuteIso(),
     clock_out_lat: pos ? pos.lat : null,
     clock_out_lng: pos ? pos.lng : null
   }).eq('id', todayRecord.id).select('*, sites(work_start, work_end, break_minutes)').single();
