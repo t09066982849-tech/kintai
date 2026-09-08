@@ -6,6 +6,11 @@ async function viewAttachment(path) {
   window.open(data.signedUrl, '_blank');
 }
 
+function attachmentButtonsHtml(paths, label) {
+  if (!paths || paths.length === 0) return '';
+  return paths.map((p, idx) => `<button class="small" onclick="viewAttachment('${p}')">${label}${paths.length > 1 ? (idx + 1) : ''}</button>`).join(' ');
+}
+
 function setSummaryHighlight(id, hasItems) {
   const el = document.getElementById(id);
   if (el) el.style.color = hasItems ? '#dc2626' : '';
@@ -744,7 +749,7 @@ function showLeaveDetail(id) {
     rows.push(['区分', i.zone === 'outside' ? '道外' : '道内']);
     rows.push(['宿泊', i.hotel_needed ? '要' : '不要']);
     if (i.total_amount != null) rows.push(['概算合計', `${i.total_amount}円`]);
-    if (i.attachment_path) rows.push(['添付', `<button class="small" onclick="viewAttachment('${i.attachment_path}')">見る</button>`]);
+    if (i.attachment_paths && i.attachment_paths.length > 0) rows.push(['添付', attachmentButtonsHtml(i.attachment_paths, '見る')]);
   }
 
   document.getElementById('leave-detail-body').innerHTML = rows.map(([label, value]) => `
@@ -783,7 +788,7 @@ async function loadApprovedLeaveRequests() {
       <td>${i.start_date} 〜 ${i.end_date}</td>
       <td>
         <a href="document.html?id=${i.id}" target="_blank">書類を見る</a>
-        ${i.attachment_path ? `<button class="small" onclick="viewAttachment('${i.attachment_path}')">添付を見る</button>` : ''}
+        ${attachmentButtonsHtml(i.attachment_paths, '添付を見る')}
         <button class="small" style="background:#dc2626" onclick="archiveLeaveRequestAdmin(${i.id})">一覧から外す</button>
         <button class="small" style="background:#9ca3af" onclick="cancelApprovedLeave(${i.id})">取り消し</button>
       </td>

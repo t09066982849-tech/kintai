@@ -17,6 +17,11 @@ async function viewAttachment(path) {
   window.open(data.signedUrl, '_blank');
 }
 
+function attachmentButtonsHtml(paths, label) {
+  if (!paths || paths.length === 0) return '';
+  return paths.map((p, idx) => `<button class="small" onclick="viewAttachment('${p}')">${label}${paths.length > 1 ? (idx + 1) : ''}</button>`).join(' ');
+}
+
 // 承認フェーズ通知メールを呼び出す(失敗しても申請・承認の処理自体は止めない)
 async function notifyApprovalStage(requestId) {
   try {
@@ -99,6 +104,10 @@ async function submitRequest() {
 
   if (!start || !end || !days || !reason) { alert('必須項目を入力してください'); return; }
 
+  const attachmentFiles = ['new-attachment-1', 'new-attachment-2', 'new-attachment-3']
+    .map(id => document.getElementById(id).files[0])
+    .filter(f => f);
+
   const payload = {
     employee_id: employee.id,
     type: type,
@@ -135,20 +144,28 @@ async function submitRequest() {
 
   if (error) { alert('エラー: ' + error.message); return; }
 
-  if (type === 'business_trip') {
-    const fileInput = document.getElementById('new-attachment');
-    const file = fileInput.files[0];
-    if (file) {
+  if (type === 'business_trip' && attachmentFiles.length > 0) {
+    const paths = [];
+    for (let i = 0; i < attachmentFiles.length; i++) {
+      const file = attachmentFiles[i];
       const safeName = file.name.replace(/[^\w.\-]/g, '_');
-      const path = `${employee.id}/${data.id}_${safeName}`;
+      const path = `${employee.id}/${data.id}_${i}_${safeName}`;
       const { error: uploadError } = await supabaseClient.storage.from('leave-attachments').upload(path, file);
       if (uploadError) {
-        alert('添付ファイルのアップロードに失敗しました(申請自体は完了しています): ' + uploadError.message);
+        alert(`添付ファイル(${file.name})のアップロードに失敗しました(申請自体は完了しています): ` + uploadError.message);
       } else {
-        await supabaseClient.from('leave_requests').update({ attachment_path: path }).eq('id', data.id);
+        paths.push(path);
       }
     }
-    fileInput.value = '';
+    if (paths.length > 0) {
+      await supabaseClient.from('leave_requests').update({ attachment_paths: paths }).eq('id', data.id);
+    }
+  }
+
+  if (type === 'business_trip') {
+    document.getElementById('new-attachment-1').value = '';
+    document.getElementById('new-attachment-2').value = '';
+    document.getElementById('new-attachment-3').value = '';
   }
 
   document.getElementById('new-start').value = '';
@@ -224,7 +241,7 @@ async function loadApprovalList() {
       <td>${typeLabel[i.type] || i.type}</td>
       <td>${i.start_date} 〜 ${i.end_date}</td>
       <td>${i.days}</td>
-      <td>${detail}${i.attachment_path ? ` <button class="small" onclick="viewAttachment('${i.attachment_path}')">添付を見る</button>` : ''}</td>
+      <td>${detail} ${attachmentButtonsHtml(i.attachment_paths, '添付を見る')}</td>
       <td>
         <button class="small" onclick="approveRequest(${i.id})">承認</button>
         <button class="small" style="background:#dc2626" onclick="rejectRequest(${i.id})">却下</button>
@@ -381,9 +398,7 @@ async function loadMyRequests() {
     if (canCancel) cancelCell = `<button class="small" style="background:#dc2626" onclick="cancelMyRequest(${i.id})">取り消し</button>`;
     else if (canDelete) cancelCell = `<button class="small" style="background:#dc2626" onclick="cancelMyRequest(${i.id}, true)">削除</button>`;
 
-    const attachmentCell = i.attachment_path
-      ? `<button class="small" onclick="viewAttachment('${i.attachment_path}')">見る</button>`
-      : '-';
+    const attachmentCell = attachmentButtonsHtml(i.attachment_paths, '見る') || '-';
 
     return `<tr>
       <td>${typeLabel[i.type] || i.type}</td>
