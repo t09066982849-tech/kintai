@@ -111,12 +111,13 @@ function updateClock() {
   });
 }
 
+// 他のタブ・端末で先に打刻されている可能性があるため、画面を見るたびに(定期実行・タブ復帰時)
+// サーバーの最新状態を必ず取り直してボタン表示に反映する
 async function refreshTodayStatus() {
   if (!employee) return;
   const today = getJSTDateStr();
-  if (today === currentDateStr) return;
-
   currentDateStr = today;
+
   const { data: record } = await supabaseClient
     .from('time_records')
     .select('*, sites(work_start, work_end, break_minutes)')
