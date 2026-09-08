@@ -80,7 +80,7 @@ async function loadWeather() {
   if (!pos) return;
 
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${pos.lat}&longitude=${pos.lng}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FTokyo`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${pos.lat}&longitude=${pos.lng}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_mean&timezone=Asia%2FTokyo`;
     const res = await fetch(url);
     const data = await res.json();
     if (!data.daily) return;
@@ -90,7 +90,7 @@ async function loadWeather() {
     const label = WEATHER_LABEL[code] || '';
     const maxTemp = Math.round(data.daily.temperature_2m_max[0]);
     const minTemp = Math.round(data.daily.temperature_2m_min[0]);
-    const precipProb = data.daily.precipitation_probability_max ? data.daily.precipitation_probability_max[0] : null;
+    const precipProb = data.daily.precipitation_probability_mean ? data.daily.precipitation_probability_mean[0] : null;
 
     widget.innerHTML = `
       <div>${icon} ${label}</div>
