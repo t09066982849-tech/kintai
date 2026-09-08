@@ -763,6 +763,7 @@ async function loadApprovedLeaveRequests() {
     .from('leave_requests')
     .select('*, employees!leave_requests_employee_id_fkey(name)')
     .eq('status', 'approved')
+    .eq('archived', false)
     .order('start_date', { ascending: false });
 
   if (error) { console.error(error); return; }
@@ -783,18 +784,18 @@ async function loadApprovedLeaveRequests() {
       <td>
         <a href="document.html?id=${i.id}" target="_blank">書類を見る</a>
         ${i.attachment_path ? `<button class="small" onclick="viewAttachment('${i.attachment_path}')">添付を見る</button>` : ''}
-        <button class="small" style="background:#dc2626" onclick="deleteLeaveRequestAdmin(${i.id})">削除</button>
+        <button class="small" style="background:#dc2626" onclick="archiveLeaveRequestAdmin(${i.id})">一覧から外す</button>
         <button class="small" style="background:#9ca3af" onclick="cancelApprovedLeave(${i.id})">取り消し</button>
       </td>
     </tr>
   `).join('');
 }
 
-async function deleteLeaveRequestAdmin(id) {
-  if (!confirm('この申請データを削除しますか？Fileforceへの保管が済んでいることを確認してから削除してください。')) return;
-  if (!confirm('本当に削除しますか？この操作は取り消せません。')) return;
+// 一覧から見えなくするだけで、データ自体は消さない(Excel集計・有給取得履歴で実績を正しく参照し続けるため)
+async function archiveLeaveRequestAdmin(id) {
+  if (!confirm('この申請をこの一覧から外しますか？Fileforceへの保管が済んでいることを確認してください。(データ自体は残るので、Excel集計や有給取得履歴には引き続き反映されます)')) return;
 
-  const { error } = await supabaseClient.from('leave_requests').delete().eq('id', id);
+  const { error } = await supabaseClient.from('leave_requests').update({ archived: true }).eq('id', id);
   if (error) { alert('エラー: ' + error.message); return; }
   loadApprovedLeaveRequests();
 }
@@ -928,7 +929,7 @@ async function loadEmployees() {
   const tbody = document.getElementById('employees-body');
   tbody.innerHTML = employees.map(e => `
     <tr>
-      <td>${e.name}</td>
+      <td><button class="small" onclick="showLeaveHistory(${e.id}, '${e.name.replace(/'/g, "\\'")}')">${e.name}</button></td>
       <td>${deptLabel[e.department] || e.department || '-'}</td>
       <td style="color:#dc2626">${e.paid_leave_balance != null ? e.paid_leave_balance : '-'}</td>
       <td>${e.is_active ? '<span class="status-approved">有効</span>' : '<span class="status-rejected">無効</span>'}</td>
@@ -940,6 +941,38 @@ async function loadEmployees() {
       </td>
     </tr>
   `).join('');
+}
+
+async function showLeaveHistory(employeeId, employeeName) {
+  const { data: items, error } = await supabaseClient
+    .from('leave_requests')
+    .select('start_date, end_date, days')
+    .eq('employee_id', employeeId)
+    .eq('type', 'paid_leave')
+    .eq('status', 'approved')
+    .order('start_date', { ascending: false });
+
+  document.getElementById('leave-history-name').textContent = `${employeeName} さんの有給取得履歴`;
+
+  const tbody = document.getElementById('leave-history-body');
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="2">エラー: ${error.message}</td></tr>`;
+  } else if (!items || items.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="2">取得履歴はありません</td></tr>';
+  } else {
+    tbody.innerHTML = items.map(i => `
+      <tr>
+        <td>${i.start_date} 〜 ${i.end_date}</td>
+        <td>${i.days}</td>
+      </tr>
+    `).join('');
+  }
+
+  document.getElementById('leave-history-modal-bg').style.display = 'flex';
+}
+
+function closeLeaveHistory() {
+  document.getElementById('leave-history-modal-bg').style.display = 'none';
 }
 
 async function toggleActive(id, makeActive) {
