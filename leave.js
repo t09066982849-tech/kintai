@@ -191,8 +191,9 @@ async function autoSkipIfSelf(request) {
   // 常務(承認フロー最上位、社長は既に除外済み)本人の申請は、承認できる人がいないため
   // 部長段階も含めて全段階を自動で承認済みにする
   if (employee.role === 'director') {
-    current = await advanceStage(current, employee.id, true); // 部長段階 → 常務段階
-    current = await advanceStage(current, employee.id, true); // 常務段階 → 完了
+    // 部長は実際には関与していないので manager_approved_by には触れず、常務承認だけ直接記録する
+    current = { ...current, current_stage: 'director' };
+    current = await advanceStage(current, employee.id, true);
     return;
   }
 
