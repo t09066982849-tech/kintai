@@ -32,7 +32,7 @@
 - `missing_record_requests`:打刻記録が丸ごと存在しない日の追加申請(出勤忘れ・退勤忘れの当日も含む)。`requested_clock_in`必須、`requested_clock_out`は任意。承認されると新規`time_records`行が作られる(退勤未入力ならNULLのまま、後で通常の退勤ボタンが使える)。**こちらも早出・残業の自動丸めは撤廃済み**。却下時は再申請ボタンが出る
 - `schedules`:スケジュール。`type`は event/paid_leave/business_trip。複数日対応(`end_date`)。全員閲覧可。`leave_request_id`(2026-09-03追加)で承認済み申請から自動登録された予定を`leave_requests`と紐付け(手動追加の`event`のみ本人・管理者が編集削除可、有給・出張の予定は管理画面の「取り消し」経由のみ)
 - `schedule_members`:スケジュールの参加メンバー(多対多)
-- `leave_requests`:有給・出張申請。部長→常務の2段階承認の状態を保持(2026-08-26に社長を除外し3段階から変更。`president_approved_by`等の列は過去分の記録として残存)。出張は`zone`/`daily_allowance`/`hotel_fee`/`total_amount`も持つ。有給は全承認完了時に`employees.paid_leave_balance`から自動減算。`attachment_paths`(text[]、2026-09-04追加・2026-09-09に単一`attachment_path`から配列化し最大3ファイル対応。出張の領収書等をStorage`leave-attachments`バケットに保存)。`archived`(2026-09-08追加、trueなら承認済み申請書類の一覧からは非表示になるがExcel集計・有給取得履歴には引き続き含まれる。「削除」ボタンは実際にはこれをtrueにするだけで、行自体は消さない)。`addressee`(2026-09-11追加、申請書類の宛名。株式会社伊豆倉組/アークコーポレーション株式会社から申請時に選択、未設定なら株式会社伊豆倉組扱い)
+- `leave_requests`:有給・出張申請。部長→常務の2段階承認の状態を保持(2026-08-26に社長を除外し3段階から変更。`president_approved_by`等の列は過去分の記録として残存)。出張は`zone`/`daily_allowance`/`hotel_fee`/`total_amount`も持つ。`hotel_arrangement`(2026-09-11、旧`hotel_needed`真偽値から変更。none/self/reimbursement/company/clientの5択)、`hotel_location`(company選択時の希望周辺場所)。有給は全承認完了時に`employees.paid_leave_balance`から自動減算。`attachment_paths`(text[]、2026-09-04追加・2026-09-09に単一`attachment_path`から配列化し最大3ファイル対応。出張の領収書等をStorage`leave-attachments`バケットに保存)。`archived`(2026-09-08追加、trueなら承認済み申請書類の一覧からは非表示になるがExcel集計・有給取得履歴には引き続き含まれる。「削除」ボタンは実際にはこれをtrueにするだけで、行自体は消さない)。`addressee`(2026-09-11追加、申請書類の宛名。株式会社伊豆倉組/アークコーポレーション株式会社から申請時に選択、未設定なら株式会社伊豆倉組扱い)
 - `travel_rate_groups` / `travel_rates`:旅費規程(グループ単位で道内/道外の日当・宿泊費)
 - `holidays`:全国の祝日マスタ(`sync-holidays`で自動取得)。**経理部の休日判定にのみ使用**。土木部は使わない(下記参照)
 - `company_holidays`:会社独自の休業期間(GW・お盆・年末年始など、`start_date`〜`end_date`)。**土木部の休日判定に使用**。現在登録済み:GW(5/3-5/5)、お盆(8/13-8/15)、年末年始(12/29-1/4)。年ごとに手動で追加・更新が必要
@@ -212,8 +212,7 @@ where email = 'admin@izukura.co.jp';
 - **2026-09-09**:出張申請の添付ファイルを1つまでから3つまでに拡張。当初`<input type="file" multiple>`でCtrlキー併用の複数選択にしたが分かりにくいとの指摘があり、ファイル選択ボタンを3つ並べる方式に変更した。`leave_requests.attachment_path`(単一)を`attachment_paths`(text[])に置き換え、各画面の添付表示も複数ボタン(2つ以上あれば「見る1」「見る2」のように番号付き)に対応させた。
 - **2026-09-09(続き)**:常務本人が申請した際の書類で、常務の印鑑欄だけでなく部長の印鑑欄にも常務自身の名前が表示されてしまう不具合を修正。原因は`autoSkipIfSelf`が常務の自己承認時に部長段階もスキップする処理で、`manager_approved_by`にも常務自身のIDを入れてしまっていたため。部長は実際には関与していないので`manager_approved_by`には触れず、常務承認(`director_approved_by`)だけを直接記録するように修正した。あわせて、既存データのうち同条件(`employee_id`=常務、`manager_approved_by`=`director_approved_by`=常務自身)に該当する分は`manager_approved_by`をNULLに戻すSQLで修正済み。
 - **2026-09-11**:申請書類の宛名が「株式会社伊豆倉組」に固定だったのを、申請時に宛先(株式会社伊豆倉組/アークコーポレーション株式会社)を選べるように変更。`leave_requests`に`addressee`列を追加し、`document.js`はその値(無ければ株式会社伊豆倉組)を宛名に表示する。
-
-## 秘密情報の所在(値はここに書かない)
+- **2026-09-11(続き)**:出張申請のホテル手配を、チェックボックス(要/不要)から5択のプルダウン(不要/自己手配・現金支給/実費精算・領収書添付+常務承認要/会社手配/先方手配)に変更。`hotel_needed`(真偽値)を`hotel_arrangement`(テキスト)に置き換え、会社手配を選んだときだけ`hotel_location`(希望周辺場所)を入力できるようにした。日当・宿泊費の概算計算は、自己手配のときだけ規定の宿泊費×泊数を含め、実費精算・会社手配・先方手配は本人への支給額として計算しない。あわせて交通機関も自由記述からチェックボックス(JR/バス/飛行機の自己手配・会社手配、社有車、個人車から複数選択・横並び配置)に変更(こちらはDBスキーマ変更なし、選択値を「、」区切りで既存の`transportation`列にそのまま保存)。
 
 - Supabase Publishable Key:各HTML内の`supabaseUrl`/`supabaseKey`に直書き(公開情報のため問題なし)
 - Resend APIキー:Supabase Edge Functions の Secrets(`RESEND_API_KEY`)
