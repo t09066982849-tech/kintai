@@ -58,7 +58,7 @@ function renderPaidLeave(req, nameById, deptText, managerLabel) {
   return `
     <div class="doc-title">有給休暇届</div>
     <div class="doc-header">
-      <div class="doc-header-to">株式会社伊豆倉組 様</div>
+      <div class="doc-header-to">${req.addressee || '株式会社伊豆倉組'} 様</div>
       <table class="seal-table">
         <tr><th>常務</th><th>${managerLabel}</th></tr>
         <tr>
@@ -84,7 +84,7 @@ function renderBusinessTrip(req, nameById, deptText, managerLabel) {
   return `
     <div class="doc-title">出張申請書</div>
     <div class="doc-header">
-      <div class="doc-header-to">株式会社伊豆倉組 様</div>
+      <div class="doc-header-to">${req.addressee || '株式会社伊豆倉組'} 様</div>
       <table class="seal-table">
         <tr><th>常務</th><th>${managerLabel}</th></tr>
         <tr>

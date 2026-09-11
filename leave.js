@@ -115,7 +115,8 @@ async function submitRequest() {
     end_date: end,
     days: Number(days),
     reason: reason,
-    contact_phone: contact || null
+    contact_phone: contact || null,
+    addressee: document.getElementById('new-addressee').value
   };
 
   if (type === 'business_trip') {
