@@ -58,12 +58,29 @@
   <div id="trip-fields" style="display:none">
     <label>行き先</label>
     <input type="text" id="new-destination" placeholder="例:札幌市">
-    <label>交通機関</label>
-    <input type="text" id="new-transportation" placeholder="例:JR、自家用車">
-    <label style="display:flex; align-items:center; gap:8px; width:auto;">
-      <input type="checkbox" id="new-hotel" style="width:auto; margin:0;" onchange="updateEstimate()">
-      ホテル手配が必要
-    </label>
+    <label>交通機関(複数選択可)</label>
+    <div id="transportation-checkboxes" style="display:flex; flex-wrap:wrap; gap:6px 16px;">
+      <label style="display:flex; align-items:center; gap:8px; width:auto;"><input type="checkbox" value="JR(自己手配)" style="width:auto; margin:0;">JR(自己手配)</label>
+      <label style="display:flex; align-items:center; gap:8px; width:auto;"><input type="checkbox" value="JR(会社手配)" style="width:auto; margin:0;">JR(会社手配)</label>
+      <label style="display:flex; align-items:center; gap:8px; width:auto;"><input type="checkbox" value="バス(自己手配)" style="width:auto; margin:0;">バス(自己手配)</label>
+      <label style="display:flex; align-items:center; gap:8px; width:auto;"><input type="checkbox" value="バス(会社手配)" style="width:auto; margin:0;">バス(会社手配)</label>
+      <label style="display:flex; align-items:center; gap:8px; width:auto;"><input type="checkbox" value="飛行機(自己手配)" style="width:auto; margin:0;">飛行機(自己手配)</label>
+      <label style="display:flex; align-items:center; gap:8px; width:auto;"><input type="checkbox" value="飛行機(会社手配)" style="width:auto; margin:0;">飛行機(会社手配)</label>
+      <label style="display:flex; align-items:center; gap:8px; width:auto;"><input type="checkbox" value="社有車" style="width:auto; margin:0;">社有車</label>
+      <label style="display:flex; align-items:center; gap:8px; width:auto;"><input type="checkbox" value="個人車" style="width:auto; margin:0;">個人車</label>
+    </div>
+    <label>ホテル手配</label>
+    <select id="new-hotel-arrangement" onchange="toggleHotelFields(); updateEstimate()">
+      <option value="none" selected>不要</option>
+      <option value="self">自己手配(現金支給)</option>
+      <option value="reimbursement">実費精算(領収書添付・常務の承認要)</option>
+      <option value="company">会社手配(手配依頼をおこなってください)</option>
+      <option value="client">先方手配</option>
+    </select>
+    <div id="hotel-location-field" style="display:none">
+      <label>希望周辺場所</label>
+      <input type="text" id="new-hotel-location" placeholder="例:札幌駅周辺">
+    </div>
     <label>区分</label>
     <select id="new-zone" onchange="updateEstimate()">
       <option value="domestic">道内</option>

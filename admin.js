@@ -696,6 +696,13 @@ async function exportAnnualSummary() {
 }
 
 const adminTypeLabel = { paid_leave: '有給休暇', business_trip: '出張' };
+const hotelArrangementLabel = {
+  none: '不要',
+  self: '自己手配(現金支給)',
+  reimbursement: '実費精算(領収書添付・常務の承認要)',
+  company: '会社手配(手配依頼をおこなってください)',
+  client: '先方手配'
+};
 const adminStageLabel = { manager: '部長承認待ち', director: '常務承認待ち' };
 
 let pendingLeaveItems = [];
@@ -747,7 +754,8 @@ function showLeaveDetail(id) {
     rows.push(['行き先', i.destination || '']);
     rows.push(['交通機関', i.transportation || '']);
     rows.push(['区分', i.zone === 'outside' ? '道外' : '道内']);
-    rows.push(['宿泊', i.hotel_needed ? '要' : '不要']);
+    const hotelLabel = hotelArrangementLabel[i.hotel_arrangement] || '不要';
+    rows.push(['宿泊', hotelLabel + (i.hotel_arrangement === 'company' && i.hotel_location ? `(${i.hotel_location})` : '')]);
     if (i.total_amount != null) rows.push(['概算合計', `${i.total_amount}円`]);
     if (i.attachment_paths && i.attachment_paths.length > 0) rows.push(['添付', attachmentButtonsHtml(i.attachment_paths, '見る')]);
   }

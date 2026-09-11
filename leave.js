@@ -63,11 +63,24 @@ async function loadMyTravelRates() {
   data.forEach(r => { myTravelRates[r.zone] = r; });
 }
 
+const hotelArrangementLabel = {
+  none: '不要',
+  self: '自己手配(現金支給)',
+  reimbursement: '実費精算(領収書添付・常務の承認要)',
+  company: '会社手配(手配依頼をおこなってください)',
+  client: '先方手配'
+};
+
+function toggleHotelFields() {
+  const arrangement = document.getElementById('new-hotel-arrangement').value;
+  document.getElementById('hotel-location-field').style.display = arrangement === 'company' ? 'block' : 'none';
+}
+
 function updateEstimate() {
   const box = document.getElementById('estimate-box');
   const zone = document.getElementById('new-zone').value;
   const days = Number(document.getElementById('new-days').value) || 0;
-  const hotelNeeded = document.getElementById('new-hotel').checked;
+  const arrangement = document.getElementById('new-hotel-arrangement').value;
 
   if (!myTravelRates || !myTravelRates[zone]) {
     box.textContent = 'この区分の旅費規程が設定されていません。経理にご確認ください。';
@@ -77,11 +90,20 @@ function updateEstimate() {
   const rate = myTravelRates[zone];
   const nights = Math.max(0, days - 1); // 宿泊数 = 日数 - 1
   const allowanceTotal = rate.daily_allowance * days;
-  const hotelTotal = hotelNeeded ? rate.hotel_fee * nights : 0;
-  const total = allowanceTotal + hotelTotal;
 
-  box.textContent = `概算:日当 ${rate.daily_allowance}円 × ${days}日 = ${allowanceTotal}円` +
-    (hotelNeeded ? ` / 宿泊費 ${rate.hotel_fee}円 × ${nights}泊 = ${hotelTotal}円` : '') +
+  let hotelText = '';
+  let total = allowanceTotal;
+  if (arrangement === 'self') {
+    const hotelTotal = rate.hotel_fee * nights;
+    hotelText = ` / 宿泊費 ${rate.hotel_fee}円 × ${nights}泊 = ${hotelTotal}円`;
+    total += hotelTotal;
+  } else if (arrangement === 'reimbursement') {
+    hotelText = ' / 宿泊費 実費精算(領収書を確認)';
+  } else if (arrangement === 'company' || arrangement === 'client') {
+    hotelText = ` / 宿泊費 ${hotelArrangementLabel[arrangement]}(本人への支給なし)`;
+  }
+
+  box.textContent = `概算:日当 ${rate.daily_allowance}円 × ${days}日 = ${allowanceTotal}円` + hotelText +
     ` / 合計 ${total}円(概算です。実費と異なる場合があります)`;
 }
 
@@ -121,23 +143,32 @@ async function submitRequest() {
 
   if (type === 'business_trip') {
     const destination = document.getElementById('new-destination').value.trim();
-    const transportation = document.getElementById('new-transportation').value.trim();
-    const hotelNeeded = document.getElementById('new-hotel').checked;
+    const transportation = Array.from(document.querySelectorAll('#transportation-checkboxes input:checked'))
+      .map(cb => cb.value)
+      .join('、');
+    const hotelArrangement = document.getElementById('new-hotel-arrangement').value;
+    const hotelLocation = document.getElementById('new-hotel-location').value.trim();
     const zone = document.getElementById('new-zone').value;
 
     if (!destination) { alert('行き先を入力してください'); return; }
 
     payload.destination = destination;
     payload.transportation = transportation || null;
-    payload.hotel_needed = hotelNeeded;
+    payload.hotel_arrangement = hotelArrangement;
+    payload.hotel_location = hotelArrangement === 'company' ? (hotelLocation || null) : null;
     payload.zone = zone;
 
     if (myTravelRates && myTravelRates[zone]) {
       const rate = myTravelRates[zone];
       const nights = Math.max(0, Number(days) - 1);
       payload.daily_allowance = rate.daily_allowance;
-      payload.hotel_fee = hotelNeeded ? rate.hotel_fee : 0;
-      payload.total_amount = (rate.daily_allowance * Number(days)) + (hotelNeeded ? rate.hotel_fee * nights : 0);
+      if (hotelArrangement === 'self') {
+        payload.hotel_fee = rate.hotel_fee;
+        payload.total_amount = (rate.daily_allowance * Number(days)) + (rate.hotel_fee * nights);
+      } else {
+        payload.hotel_fee = 0;
+        payload.total_amount = rate.daily_allowance * Number(days);
+      }
     }
   }
 
@@ -175,8 +206,10 @@ async function submitRequest() {
   document.getElementById('new-reason').value = '';
   document.getElementById('new-contact').value = '';
   document.getElementById('new-destination').value = '';
-  document.getElementById('new-transportation').value = '';
-  document.getElementById('new-hotel').checked = false;
+  document.querySelectorAll('#transportation-checkboxes input:checked').forEach(cb => { cb.checked = false; });
+  document.getElementById('new-hotel-arrangement').value = 'none';
+  document.getElementById('new-hotel-location').value = '';
+  toggleHotelFields();
   document.getElementById('estimate-box').textContent = '';
 
   await autoSkipIfSelf(data);
@@ -232,7 +265,8 @@ async function loadApprovalList() {
       if (i.destination) parts.push('行き先:' + i.destination);
       if (i.transportation) parts.push('交通:' + i.transportation);
       parts.push('区分:' + zoneLabel);
-      parts.push('ホテル:' + (i.hotel_needed ? '要' : '不要'));
+      const hotelLabel = hotelArrangementLabel[i.hotel_arrangement] || '不要';
+      parts.push('ホテル:' + hotelLabel + (i.hotel_arrangement === 'company' && i.hotel_location ? `(${i.hotel_location})` : ''));
       if (i.total_amount != null) parts.push('概算合計:' + i.total_amount + '円');
       parts.push('用件:' + (i.reason || ''));
       detail = parts.join(' / ');

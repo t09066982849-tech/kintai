@@ -1,5 +1,12 @@
 const deptLabel = { civil: '土木部', accounting: '経理部' };
 const approverLabel = { manager: '部長', director: '常務' };
+const hotelArrangementLabel = {
+  none: '不要',
+  self: '自己手配(現金支給)',
+  reimbursement: '実費精算(領収書添付・常務の承認要)',
+  company: '会社手配(手配依頼をおこなってください)',
+  client: '先方手配'
+};
 
 function sealName(fullName) {
   if (!fullName) return '';
@@ -80,7 +87,12 @@ function renderPaidLeave(req, nameById, deptText, managerLabel) {
 
 function renderBusinessTrip(req, nameById, deptText, managerLabel) {
   const zoneLabel = req.zone === 'outside' ? '道外' : '道内';
-  const nights = req.hotel_needed ? Math.max(0, req.days - 1) : 0;
+  const nights = req.hotel_arrangement === 'self' ? Math.max(0, req.days - 1) : 0;
+  const hotelLabel = (hotelArrangementLabel[req.hotel_arrangement] || '不要') +
+    (req.hotel_arrangement === 'company' && req.hotel_location ? `(${req.hotel_location})` : '');
+  const hotelFeeText = req.hotel_arrangement === 'self' && req.hotel_fee != null
+    ? req.hotel_fee + '円 × ' + nights + '泊'
+    : (hotelArrangementLabel[req.hotel_arrangement] || '不要');
   return `
     <div class="doc-title">出張申請書</div>
     <div class="doc-header">
@@ -97,8 +109,8 @@ function renderBusinessTrip(req, nameById, deptText, managerLabel) {
       <tr><th>申請日</th><td colspan="5">${jstDateOnly(req.created_at)}</td></tr>
       <tr><th>氏名</th><td>${req.employees.name}</td><th>所属</th><td>${deptText}</td><th></th><td></td></tr>
       <tr><th>期間</th><td>${req.start_date} 〜 ${req.end_date}(${req.days}日間)</td><th>行き先</th><td>${req.destination || ''}</td><th>用件</th><td>${req.reason || ''}</td></tr>
-      <tr><th>交通機関</th><td>${req.transportation || ''}</td><th>宿泊</th><td>${req.hotel_needed ? '要' : '不要'}</td><th>区分</th><td>${zoneLabel}</td></tr>
-      <tr><th>日当</th><td>${req.daily_allowance != null ? req.daily_allowance + '円 × ' + req.days + '日' : ''}</td><th>宿泊費</th><td>${req.hotel_needed && req.hotel_fee != null ? req.hotel_fee + '円 × ' + nights + '泊' : '-'}</td><th>合計金額</th><td>${req.total_amount != null ? req.total_amount + '円(概算)' : ''}</td></tr>
+      <tr><th>交通機関</th><td>${req.transportation || ''}</td><th>宿泊</th><td>${hotelLabel}</td><th>区分</th><td>${zoneLabel}</td></tr>
+      <tr><th>日当</th><td>${req.daily_allowance != null ? req.daily_allowance + '円 × ' + req.days + '日' : ''}</td><th>宿泊費</th><td>${hotelFeeText}</td><th>合計金額</th><td>${req.total_amount != null ? req.total_amount + '円(概算)' : ''}</td></tr>
       <tr><th>連絡先</th><td colspan="5">${req.contact_phone || ''}</td></tr>
     </table>
   `;
