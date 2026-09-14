@@ -76,18 +76,32 @@ function toggleHotelFields() {
   document.getElementById('hotel-location-field').style.display = arrangement === 'company' ? 'block' : 'none';
 }
 
+// 伊豆倉米郎さんがアークコーポレーション宛に申請する場合だけ使う特別レート
+const ARK_TRAVEL_RATES = {
+  domestic: { daily_allowance: 5500, hotel_fee: 11000 },
+  outside: { daily_allowance: 7000, hotel_fee: 13000 }
+};
+
+function getApplicableTravelRate(zone) {
+  const addressee = document.getElementById('new-addressee').value;
+  if (addressee === 'アークコーポレーション株式会社' && employee.id === 7) {
+    return ARK_TRAVEL_RATES[zone];
+  }
+  return myTravelRates ? myTravelRates[zone] : null;
+}
+
 function updateEstimate() {
   const box = document.getElementById('estimate-box');
   const zone = document.getElementById('new-zone').value;
   const days = Number(document.getElementById('new-days').value) || 0;
   const arrangement = document.getElementById('new-hotel-arrangement').value;
 
-  if (!myTravelRates || !myTravelRates[zone]) {
+  const rate = getApplicableTravelRate(zone);
+  if (!rate) {
     box.textContent = 'この区分の旅費規程が設定されていません。経理にご確認ください。';
     return;
   }
 
-  const rate = myTravelRates[zone];
   const nights = Math.max(0, days - 1); // 宿泊数 = 日数 - 1
   const allowanceTotal = rate.daily_allowance * days;
 
@@ -158,8 +172,8 @@ async function submitRequest() {
     payload.hotel_location = hotelArrangement === 'company' ? (hotelLocation || null) : null;
     payload.zone = zone;
 
-    if (myTravelRates && myTravelRates[zone]) {
-      const rate = myTravelRates[zone];
+    const rate = getApplicableTravelRate(zone);
+    if (rate) {
       const nights = Math.max(0, Number(days) - 1);
       payload.daily_allowance = rate.daily_allowance;
       if (hotelArrangement === 'self') {
