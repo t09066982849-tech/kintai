@@ -35,7 +35,7 @@ async function loadDocument() {
 
   const { data: req, error } = await supabaseClient
     .from('leave_requests')
-    .select('*, employees!leave_requests_employee_id_fkey(name, department)')
+    .select('*, employees!leave_requests_employee_id_fkey(name, department, department_label)')
     .eq('id', id)
     .single();
 
@@ -51,7 +51,7 @@ async function loadDocument() {
   const nameById = {};
   (approvers || []).forEach(a => { nameById[a.id] = a.name; });
 
-  const deptText = deptLabel[req.employees.department] || '';
+  const deptText = req.employees.department_label || deptLabel[req.employees.department] || '';
   const managerLabel = req.employees.department === 'accounting' ? '経理部長' : '土木部長';
 
   const html = req.type === 'paid_leave'

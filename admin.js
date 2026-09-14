@@ -54,7 +54,7 @@ async function loadTodayStatus() {
 
   const { data: rawEmployees, error: empError } = await supabaseClient
     .from('employees')
-    .select('id, name, department')
+    .select('id, name, department, department_label')
     .eq('is_admin', false)
     .eq('is_active', true)
     .order('name');
@@ -85,7 +85,7 @@ async function loadTodayStatus() {
     return `
       <tr>
         <td><button class="small" onclick="showEmployeeDetail(${emp.id}, '${emp.name.replace(/'/g, "\\'")}')">${emp.name}</button></td>
-        <td>${deptLabelStatus[emp.department] || emp.department || ''}</td>
+        <td>${emp.department_label || deptLabelStatus[emp.department] || emp.department || ''}</td>
         <td>${r && r.sites ? r.sites.name : '-'}</td>
         <td>${r ? timeCellHtml(r.clock_in ? new Date(r.clock_in) : null, metrics.adjustedIn) : '-'}</td>
         <td>${r ? timeCellHtml(r.clock_out ? new Date(r.clock_out) : null, metrics.adjustedOut) : '-'}</td>
@@ -379,7 +379,7 @@ async function exportExcel() {
 
   const { data: rawEmployees, error: empError } = await supabaseClient
     .from('employees')
-    .select('id, name, department')
+    .select('id, name, department, department_label')
     .eq('is_admin', false)
     .order('name');
   const allEmployees = (rawEmployees || []).filter(e => !EXCLUDED_EXECUTIVE_IDS.includes(e.id));
@@ -388,7 +388,7 @@ async function exportExcel() {
 
   const { data: records, error } = await supabaseClient
     .from('time_records')
-    .select('*, employees(id, name, department), sites(name, work_start, work_end, break_minutes)')
+    .select('*, employees(id, name, department, department_label), sites(name, work_start, work_end, break_minutes)')
     .gte('date', startDate)
     .lte('date', endDate)
     .order('employee_id', { ascending: true })
@@ -428,7 +428,7 @@ async function exportExcel() {
   const grouped = {};
   (allEmployees || []).forEach(emp => {
     grouped[emp.id] = {
-      name: emp.name, department: emp.department, rows: [],
+      name: emp.name, department: emp.department, departmentLabel: emp.department_label, rows: [],
       weekdayDays: 0, holidayDays: 0, workMinutesTotal: 0, overtimeMinutesTotal: 0, breakMinutesTotal: 0
     };
   });
@@ -437,9 +437,10 @@ async function exportExcel() {
     const empId = r.employees ? r.employees.id : 'unknown';
     const empName = r.employees ? r.employees.name : '不明';
     const department = r.employees ? r.employees.department : null;
+    const departmentLabel = r.employees ? r.employees.department_label : null;
     if (!grouped[empId]) {
       grouped[empId] = {
-        name: empName, department, rows: [],
+        name: empName, department, departmentLabel, rows: [],
         weekdayDays: 0, holidayDays: 0, workMinutesTotal: 0, overtimeMinutesTotal: 0, breakMinutesTotal: 0
       };
     }
@@ -488,7 +489,7 @@ async function exportExcel() {
     const leave = leaveDaysByEmployee[empId] || {};
     return {
       '氏名': group.name,
-      '部署': deptLabelExport[group.department] || group.department || '',
+      '部署': group.departmentLabel || deptLabelExport[group.department] || group.department || '',
       '平日出勤日数': group.weekdayDays,
       '休日出勤日数': group.holidayDays,
       '有休取得日数': leave.paid_leave || 0,
@@ -894,7 +895,7 @@ async function createEmployee() {
   const email = document.getElementById('new-emp-email').value.trim();
   const password = document.getElementById('new-emp-password').value;
   const hireDate = document.getElementById('new-emp-hire-date').value;
-  const department = document.getElementById('new-emp-department').value;
+  const departmentSelect = document.getElementById('new-emp-department').value;
   const msg = document.getElementById('create-emp-message');
 
   if (!name || !email || !password || !hireDate) {
@@ -903,13 +904,17 @@ async function createEmployee() {
     return;
   }
 
+  // DX推進部は経理部と同じ扱い(休日判定・承認ルート)にしつつ、表示名だけ上書きする
+  const department = departmentSelect === 'dx' ? 'accounting' : departmentSelect;
+  const departmentLabel = departmentSelect === 'dx' ? 'DX推進部' : null;
+
   msg.style.color = 'black';
   msg.textContent = '登録中...';
 
   const { data: { session } } = await supabaseClient.auth.getSession();
 
   const { data, error } = await supabaseClient.functions.invoke('create-employee', {
-    body: { name, email, password, department, hire_date: hireDate },
+    body: { name, email, password, department, department_label: departmentLabel, hire_date: hireDate },
     headers: { Authorization: `Bearer ${session.access_token}` }
   });
 
@@ -933,7 +938,7 @@ const deptLabel = { civil: '土木部', accounting: '経理部' };
 async function loadEmployees() {
   const { data: employees, error } = await supabaseClient
     .from('employees')
-    .select('id, name, department, is_active, paid_leave_balance')
+    .select('id, name, department, department_label, is_active, paid_leave_balance')
     .eq('is_admin', false)
     .order('name');
 
@@ -943,7 +948,7 @@ async function loadEmployees() {
   tbody.innerHTML = employees.map(e => `
     <tr>
       <td><button class="small" onclick="showLeaveHistory(${e.id}, '${e.name.replace(/'/g, "\\'")}')">${e.name}</button></td>
-      <td>${deptLabel[e.department] || e.department || '-'}</td>
+      <td>${e.department_label || deptLabel[e.department] || e.department || '-'}</td>
       <td style="color:#dc2626">${e.paid_leave_balance != null ? e.paid_leave_balance : '-'}</td>
       <td>${e.is_active ? '<span class="status-approved">有効</span>' : '<span class="status-rejected">無効</span>'}</td>
       <td>
