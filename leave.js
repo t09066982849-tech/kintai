@@ -121,6 +121,25 @@ function updateEstimate() {
     ` / 合計 ${total}円(概算です。実費と異なる場合があります)`;
 }
 
+function updateDaysFromDates() {
+  const start = document.getElementById('new-start').value;
+  const end = document.getElementById('new-end').value;
+  if (!start || !end) return;
+
+  const startDate = new Date(start + 'T00:00:00');
+  const endDate = new Date(end + 'T00:00:00');
+  const diffDays = Math.round((endDate - startDate) / 86400000) + 1;
+
+  if (diffDays <= 0) {
+    alert('終了日は開始日以降の日付にしてください');
+    document.getElementById('new-end').value = '';
+    return;
+  }
+
+  document.getElementById('new-days').value = diffDays;
+  updateEstimate();
+}
+
 function toggleTypeFields() {
   const type = document.getElementById('new-type').value;
   const isTrip = type === 'business_trip';
@@ -139,8 +158,9 @@ async function submitRequest() {
   const contact = document.getElementById('new-contact').value.trim();
 
   if (!start || !end || !days || !reason) { alert('必須項目を入力してください'); return; }
+  if (end < start) { alert('終了日は開始日以降の日付にしてください'); return; }
 
-  const attachmentFiles = ['new-attachment-1', 'new-attachment-2', 'new-attachment-3']
+  const attachmentFiles =['new-attachment-1', 'new-attachment-2', 'new-attachment-3']
     .map(id => document.getElementById(id).files[0])
     .filter(f => f);
 
@@ -328,7 +348,7 @@ async function advanceStage(request, approverId, isSkip) {
     .select()
     .single();
 
-  if (error) { if (!isSkip) alert('エラー: ' + error.message); return request; }
+  if (error) { alert('エラー(承認処理): ' + error.message); return request; }
 
   if (data.status === 'approved') {
     await reflectToSchedule(data);
@@ -363,7 +383,7 @@ async function reflectToSchedule(request) {
     title = `出張(${request.destination})`;
   }
 
-  await supabaseClient.from('schedules').insert({
+  const { error } = await supabaseClient.from('schedules').insert({
     employee_id: request.employee_id,
     date: request.start_date,
     end_date: request.end_date !== request.start_date ? request.end_date : null,
@@ -371,6 +391,8 @@ async function reflectToSchedule(request) {
     title: title,
     leave_request_id: request.id
   });
+
+  if (error) { alert('エラー(スケジュール登録): ' + error.message); }
 }
 
 async function approveRequest(id) {
