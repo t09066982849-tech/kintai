@@ -7,6 +7,8 @@ input, select, button, textarea { width: 100%; padding: 10px; margin: 6px 0; fon
 button { background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; }
 button.small { width: auto; padding: 4px 10px; font-size: 13px; }
 #status { margin-top: 20px; padding: 12px; background: #f3f4f6; border-radius: 6px; white-space: pre-line; }
+@keyframes blink-alert { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+#missing-punch-alert:not(:empty) { animation: blink-alert 1.5s ease-in-out infinite; }
 table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
 th, td { border: 1px solid #ddd; padding: 6px; text-align: center; }
 th { background: #f3f4f6; }

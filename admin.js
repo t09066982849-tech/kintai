@@ -151,7 +151,7 @@ function closeEmployeeDetail() {
 }
 
 async function loadRequests() {
-  const [correctionsRes, missingRes] = await Promise.all([
+  const [correctionsRes, missingRes, specialRes] = await Promise.all([
     supabaseClient
       .from('correction_requests')
       .select('*, employees(name), time_records(date, clock_in, clock_out, site_id, sites(name)), requested_site:sites!correction_requests_requested_site_id_fkey(name)')
@@ -161,15 +161,22 @@ async function loadRequests() {
       .from('missing_record_requests')
       .select('*, employees!missing_record_requests_employee_id_fkey(name), sites(name)')
       .eq('status', 'pending')
+      .order('created_at', { ascending: true }),
+    supabaseClient
+      .from('special_leave_requests')
+      .select('*, employees!special_leave_requests_employee_id_fkey(name)')
+      .eq('status', 'pending')
       .order('created_at', { ascending: true })
   ]);
 
   if (correctionsRes.error) { console.error(correctionsRes.error); return; }
   if (missingRes.error) { console.error(missingRes.error); return; }
+  if (specialRes.error) { console.error(specialRes.error); return; }
 
   const combined = [
     ...correctionsRes.data.map(r => ({ kind: 'correction', createdAt: r.created_at, row: r })),
-    ...missingRes.data.map(i => ({ kind: 'missing', createdAt: i.created_at, row: i }))
+    ...missingRes.data.map(i => ({ kind: 'missing', createdAt: i.created_at, row: i })),
+    ...specialRes.data.map(i => ({ kind: 'special', createdAt: i.created_at, row: i }))
   ].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
   setSummaryHighlight('requests-summary', combined.length > 0);
@@ -208,6 +215,21 @@ async function loadRequests() {
       `;
     }
 
+    if (entry.kind === 'special') {
+      const i = entry.row;
+      return `
+        <tr>
+          <td>${i.employees ? i.employees.name : ''}</td>
+          <td>${i.date}</td>
+          <td colspan="6" style="color:#2563eb">特別休暇希望(打刻なし)</td>
+          <td>
+            <button class="small" onclick="approveSpecialLeave(${i.id})">承認</button>
+            <button class="small" style="background:#9ca3af" onclick="rejectSpecialLeave(${i.id})">却下</button>
+          </td>
+        </tr>
+      `;
+    }
+
     const i = entry.row;
     return `
       <tr>
@@ -226,6 +248,24 @@ async function loadRequests() {
       </tr>
     `;
   }).join('');
+}
+
+async function approveSpecialLeave(id) {
+  const { error } = await supabaseClient
+    .from('special_leave_requests')
+    .update({ status: 'approved', reviewed_by: employee.id, reviewed_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) { alert('エラー: ' + error.message); return; }
+  loadRequests();
+}
+
+async function rejectSpecialLeave(id) {
+  const { error } = await supabaseClient
+    .from('special_leave_requests')
+    .update({ status: 'rejected', reviewed_by: employee.id, reviewed_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) { alert('エラー: ' + error.message); return; }
+  loadRequests();
 }
 
 async function approveDeletion(requestId, timeRecordId) {

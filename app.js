@@ -167,6 +167,27 @@ function changeMonth(diff) {
   loadHistory();
 }
 
+function formatDateJa(dateStr) {
+  const [, m, d] = dateStr.split('-').map(Number);
+  return `${m}月${d}日`;
+}
+
+// 表示中の月の打刻漏れを、天気予報の下に日付ごとに一覧表示する
+function renderMissingPunchAlert(missingDates, records, todayStr) {
+  const el = document.getElementById('missing-punch-alert');
+  if (!el) return;
+
+  const issues = missingDates.map(dateStr => ({ date: dateStr, text: `${formatDateJa(dateStr)}の出勤打刻がされていません` }));
+  records.forEach(r => {
+    if (r.clock_in && !r.clock_out && r.date < todayStr) {
+      issues.push({ date: r.date, text: `${formatDateJa(r.date)}の退勤打刻がされていません` });
+    }
+  });
+  issues.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+
+  el.innerHTML = issues.map(i => `<div>⚠ ${i.text}</div>`).join('');
+}
+
 async function loadHistory() {
   const monthStr = String(viewMonth).padStart(2, '0');
   document.getElementById('month-label').textContent = `${viewYear}年${viewMonth}月`;
@@ -223,6 +244,16 @@ async function loadHistory() {
   const missingStatusByDate = {};
   (missingRequests || []).forEach(m => { missingStatusByDate[m.date] = m.status; });
 
+  const { data: specialLeaveRequests } = await supabaseClient
+    .from('special_leave_requests')
+    .select('date, status')
+    .eq('employee_id', employee.id)
+    .gte('date', startDate)
+    .lte('date', endDate)
+    .order('created_at', { ascending: true });
+  const specialLeaveStatusByDate = {};
+  (specialLeaveRequests || []).forEach(s => { specialLeaveStatusByDate[s.date] = s.status; });
+
   const existingDates = new Set(records.map(r => r.date));
   const todayStr = getJSTDateStr();
   const cutoff = endDate < todayStr ? endDate : todayStr;
@@ -245,9 +276,12 @@ async function loadHistory() {
         return s.date <= dateStr && sEnd >= dateStr;
       });
       if (excludedBySchedule) continue;
+      if (specialLeaveStatusByDate[dateStr] === 'approved') continue;
       missingDates.push(dateStr);
     }
   }
+
+  renderMissingPunchAlert(missingDates, records, todayStr);
 
   const tbody = document.getElementById('history-body');
   if (records.length === 0 && missingDates.length === 0) {
@@ -292,13 +326,18 @@ async function loadHistory() {
 
   const missingRows = missingDates.map(dateStr => {
     const status = missingStatusByDate[dateStr];
+    const specialStatus = specialLeaveStatusByDate[dateStr];
     let actionCell;
-    if (status === 'pending') {
+    if (specialStatus === 'pending') {
+      actionCell = `<span class="status-pending">特別休暇申請中</span>`;
+    } else if (specialStatus === 'rejected') {
+      actionCell = `<span class="status-rejected">特別休暇却下</span> <button class="small" onclick="submitSpecialLeave('${dateStr}')">再申請</button>`;
+    } else if (status === 'pending') {
       actionCell = `<span class="status-pending">申請中</span>`;
     } else if (status === 'rejected') {
       actionCell = `<span class="status-rejected">却下</span> <button class="small" onclick="openMissingModal('${dateStr}')">再申請</button>`;
     } else {
-      actionCell = `<button class="small" onclick="openMissingModal('${dateStr}')">記録を追加申請</button>`;
+      actionCell = `<button class="small" onclick="openMissingModal('${dateStr}')">記録を追加申請</button> <button class="small" style="background:#9ca3af" onclick="submitSpecialLeave('${dateStr}')">特別休暇として申請</button>`;
     }
     return { date: dateStr, html: `<tr><td>${dateStr}</td><td>-</td><td>-</td><td>-</td><td>記録なし</td><td>${actionCell}</td></tr>` };
   });
@@ -309,6 +348,16 @@ async function loadHistory() {
   const overtimeHours = Math.floor(totalOvertimeMinutes / 60);
   const overtimeMins = totalOvertimeMinutes % 60;
   document.getElementById('overtime-summary').innerHTML = `今月の残業:<span style="color:#dc2626">${overtimeHours}</span>時間<span style="color:#dc2626">${overtimeMins}</span>分`;
+}
+
+async function submitSpecialLeave(dateStr) {
+  if (!confirm(`${dateStr}を特別休暇として申請しますか？(打刻は不要になります)`)) return;
+  const { error } = await supabaseClient.from('special_leave_requests').insert({
+    employee_id: employee.id,
+    date: dateStr
+  });
+  if (error) { alert('エラー: ' + error.message); return; }
+  loadHistory();
 }
 
 function openMissingModal(dateStr) {
