@@ -11,6 +11,24 @@ document.addEventListener('click', function (e) {
   setTimeout(() => { btn.disabled = false; }, 1500);
 }, true);
 
+// 全画面オーバーレイ+スピナー。時間のかかる処理(位置情報取得など)の間、
+// 押した実感が無い・連打してしまうのを防ぐために使う。
+function showLoadingOverlay() {
+  let el = document.getElementById('loading-overlay');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'loading-overlay';
+    el.innerHTML = '<div class="spinner"></div>';
+    document.body.appendChild(el);
+  }
+  el.classList.add('active');
+}
+
+function hideLoadingOverlay() {
+  const el = document.getElementById('loading-overlay');
+  if (el) el.classList.remove('active');
+}
+
 async function login() {
   const email = document.getElementById('email').value;
   const password = document.getElementById('password').value;

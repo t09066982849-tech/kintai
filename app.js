@@ -496,13 +496,44 @@ function getPosition() {
   });
 }
 
+// 緯度経度から市町村始まりの住所文字列を作る(取得できなければnull)
+async function reverseGeocode(lat, lng) {
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=ja`);
+    const data = await res.json();
+    const addr = data && data.address;
+    if (!addr) return null;
+
+    const municipality = addr.city || addr.town || addr.village || addr.county || '';
+    const parts = [
+      municipality,
+      addr.suburb || addr.neighbourhood || '',
+      addr.road || '',
+      addr.house_number || ''
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join('') : null;
+  } catch (e) {
+    console.error('住所の取得に失敗しました', e);
+    return null;
+  }
+}
+
 async function clockIn() {
   if (!(await ensureSession())) return;
 
   const btn = document.getElementById('action-btn');
   btn.disabled = true;
+  showLoadingOverlay();
 
   const pos = await getPosition();
+  if (!pos) {
+    hideLoadingOverlay();
+    alert('位置情報が取得できませんでした。位置情報の利用を許可してから、もう一度お試しください。');
+    updateButton();
+    return;
+  }
+  const address = await reverseGeocode(pos.lat, pos.lng);
+
   const siteId = document.getElementById('site-select').value;
   const today = getJSTDateStr();
   const { data, error } = await supabaseClient.from('time_records').insert({
@@ -510,13 +541,16 @@ async function clockIn() {
     date: today,
     site_id: siteId,
     clock_in: nowMinuteIso(),
-    clock_in_lat: pos ? pos.lat : null,
-    clock_in_lng: pos ? pos.lng : null
+    clock_in_lat: pos.lat,
+    clock_in_lng: pos.lng,
+    clock_in_address: address
   }).select('*, sites(work_start, work_end, break_minutes)').single();
-  if (error) { alert('エラー: ' + error.message); btn.disabled = false; return; }
+  hideLoadingOverlay();
+  if (error) { alert('エラー: ' + error.message); updateButton(); return; }
   todayRecord = data;
   updateButton();
   loadHistory();
+  alert("出勤しました。今日も一日頑張りましょう('ω')ノ");
 }
 
 async function clockOut() {
@@ -524,17 +558,29 @@ async function clockOut() {
 
   const btn = document.getElementById('action-btn');
   btn.disabled = true;
+  showLoadingOverlay();
 
   const pos = await getPosition();
+  if (!pos) {
+    hideLoadingOverlay();
+    alert('位置情報が取得できませんでした。位置情報の利用を許可してから、もう一度お試しください。');
+    updateButton();
+    return;
+  }
+  const address = await reverseGeocode(pos.lat, pos.lng);
+
   const { data, error } = await supabaseClient.from('time_records').update({
     clock_out: nowMinuteIso(),
-    clock_out_lat: pos ? pos.lat : null,
-    clock_out_lng: pos ? pos.lng : null
+    clock_out_lat: pos.lat,
+    clock_out_lng: pos.lng,
+    clock_out_address: address
   }).eq('id', todayRecord.id).select('*, sites(work_start, work_end, break_minutes)').single();
-  if (error) { alert('エラー: ' + error.message); btn.disabled = false; return; }
+  hideLoadingOverlay();
+  if (error) { alert('エラー: ' + error.message); updateButton(); return; }
   todayRecord = data;
   updateButton();
   loadHistory();
+  alert('退勤しました。今日も一日お疲れ様でした(｀･ω･´)ゞ');
 }
 
 async function changePassword() {

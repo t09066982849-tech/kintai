@@ -108,7 +108,7 @@ async function showEmployeeDetail(employeeId, employeeName) {
 
   const { data: records, error } = await supabaseClient
     .from('time_records')
-    .select('date, clock_in, clock_out, sites(name, work_start, work_end, break_minutes)')
+    .select('date, clock_in, clock_out, clock_in_address, clock_out_address, sites(name, work_start, work_end, break_minutes)')
     .eq('employee_id', employeeId)
     .gte('date', startDate)
     .lte('date', endDate)
@@ -119,9 +119,9 @@ async function showEmployeeDetail(employeeId, employeeName) {
 
   const tbody = document.getElementById('employee-detail-body');
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="6">エラー: ${error.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8">エラー: ${error.message}</td></tr>`;
   } else if (!records || records.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6">今月の記録がありません</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8">今月の記録がありません</td></tr>';
   } else {
     tbody.innerHTML = records.map(r => {
       const workStart = r.sites ? r.sites.work_start : null;
@@ -138,6 +138,8 @@ async function showEmployeeDetail(employeeId, employeeName) {
           <td>${timeCellHtml(r.clock_out ? new Date(r.clock_out) : null, metrics.adjustedOut)}</td>
           <td>${workTime}</td>
           <td>${overtimeTime}</td>
+          <td>${r.clock_in_address || '-'}</td>
+          <td>${r.clock_out_address || '-'}</td>
         </tr>
       `;
     }).join('');
