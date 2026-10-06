@@ -135,6 +135,8 @@
 <div class="modal-bg" id="employee-detail-modal-bg">
   <div class="modal" style="max-width: 900px;">
     <h3 id="employee-detail-name"></h3>
+    <button id="employee-detail-btn-current" class="small" onclick="switchEmployeeDetailMonth(0)">当月</button>
+    <button id="employee-detail-btn-prev" class="small" onclick="switchEmployeeDetailMonth(-1)">前月</button>
     <p id="employee-detail-month"></p>
     <table>
       <thead><tr><th>日付</th><th>現場</th><th>出勤</th><th>退勤</th><th>勤務時間</th><th>残業時間</th><th>出勤住所</th><th>退勤住所</th></tr></thead>

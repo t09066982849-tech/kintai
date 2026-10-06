@@ -100,9 +100,24 @@ function fmtTime(t) {
   return t ? new Date(t).toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : '-';
 }
 
-async function showEmployeeDetail(employeeId, employeeName) {
+let employeeDetailTarget = null;
+
+function switchEmployeeDetailMonth(monthOffset) {
+  if (!employeeDetailTarget) return;
+  showEmployeeDetail(employeeDetailTarget.id, employeeDetailTarget.name, monthOffset);
+}
+
+// monthOffset: 0=当月、-1=前月
+async function showEmployeeDetail(employeeId, employeeName, monthOffset = 0) {
+  employeeDetailTarget = { id: employeeId, name: employeeName };
+
   const today = getJSTDateStr();
-  const [year, month] = today.split('-').map(Number);
+  const [todayYear, todayMonth] = today.split('-').map(Number);
+  const targetDate = new Date(Date.UTC(todayYear, todayMonth - 1 + monthOffset, 1));
+  const year = targetDate.getUTCFullYear();
+  const month = targetDate.getUTCMonth() + 1;
+  document.getElementById('employee-detail-btn-current').style.background = monthOffset === 0 ? '' : '#9ca3af';
+  document.getElementById('employee-detail-btn-prev').style.background = monthOffset === -1 ? '' : '#9ca3af';
   const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
   const lastDay = new Date(year, month, 0).getDate();
   const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
@@ -122,7 +137,7 @@ async function showEmployeeDetail(employeeId, employeeName) {
   if (error) {
     tbody.innerHTML = `<tr><td colspan="8">エラー: ${error.message}</td></tr>`;
   } else if (!records || records.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8">今月の記録がありません</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8">この月の記録がありません</td></tr>';
   } else {
     tbody.innerHTML = records.map(r => {
       const workStart = r.sites ? r.sites.work_start : null;
