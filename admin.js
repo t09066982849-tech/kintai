@@ -38,6 +38,7 @@ async function init() {
   document.getElementById('annual-start-year').value = currentMonth >= 6 ? now.getFullYear() : now.getFullYear() - 1;
 
   loadRequests();
+  loadPunchErrors();
   loadSites();
   loadApprovedLeaveRequests();
   loadEmployees();
@@ -150,6 +151,104 @@ async function showEmployeeDetail(employeeId, employeeName) {
 
 function closeEmployeeDetail() {
   document.getElementById('employee-detail-modal-bg').style.display = 'none';
+}
+
+// 打刻エラー一覧の対象(嶋木・松浦・佐藤・山崎・平野・川股・新妻)。全員展開後は絞り込みを外すこと
+const PUNCH_CHECK_TARGET_IDS = [1, 22, 29, 30, 31, 35, 36];
+let punchErrorView = 'current';
+
+// 指定月の打刻エラーを洗い出す(今日より前の日だけ対象)。判定は打刻漏れメールと同じ基準。
+async function computePunchErrors(year, month) {
+  const monthStr = String(month).padStart(2, '0');
+  const startDate = `${year}-${monthStr}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const endDate = `${year}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
+  const today = getJSTDateStr();
+  if (startDate >= today) return [];
+
+  const ids = PUNCH_CHECK_TARGET_IDS;
+  const results = await Promise.all([
+    supabaseClient.from('employees').select('id, name, department, hire_date').in('id', ids).eq('is_active', true),
+    supabaseClient.from('time_records').select('employee_id, date, clock_in, clock_out, sites(work_start, work_end, break_minutes)').in('employee_id', ids).gte('date', startDate).lte('date', endDate),
+    supabaseClient.from('schedules').select('employee_id, date, end_date').in('employee_id', ids).in('type', ['paid_leave', 'business_trip']).lte('date', endDate).or(`end_date.gte.${startDate},end_date.is.null`),
+    supabaseClient.from('special_leave_requests').select('employee_id, date').in('employee_id', ids).eq('status', 'approved').gte('date', startDate).lte('date', endDate),
+    supabaseClient.from('holidays').select('date').gte('date', startDate).lte('date', endDate),
+    supabaseClient.from('company_holidays').select('start_date, end_date').lte('start_date', endDate).gte('end_date', startDate)
+  ]);
+  for (const res of results) {
+    if (res.error) { console.error(res.error); return []; }
+  }
+  const [empRes, recRes, schRes, spRes, holRes, chRes] = results;
+
+  const holidaySet = new Set(holRes.data.map(h => h.date));
+  const recordByKey = {};
+  recRes.data.forEach(r => { recordByKey[`${r.employee_id}_${r.date}`] = r; });
+  const specialKeys = new Set(spRes.data.map(s => `${s.employee_id}_${s.date}`));
+
+  const errors = [];
+  empRes.data.forEach(emp => {
+    const isAccounting = emp.department === 'accounting';
+    for (let d = new Date(startDate + 'T00:00:00Z'); ; d.setUTCDate(d.getUTCDate() + 1)) {
+      const dateStr = d.toISOString().slice(0, 10);
+      if (dateStr > endDate || dateStr >= today) break;
+
+      const weekday = d.getUTCDay();
+      if (weekday === 0 || weekday === 6) continue;
+      const isHoliday = isAccounting
+        ? holidaySet.has(dateStr)
+        : chRes.data.some(ch => ch.start_date <= dateStr && ch.end_date >= dateStr);
+      if (isHoliday) continue;
+      if (emp.hire_date && dateStr < emp.hire_date) continue;
+
+      const onLeave = schRes.data.some(s => s.employee_id === emp.id && s.date <= dateStr && (s.end_date || s.date) >= dateStr);
+      if (onLeave || specialKeys.has(`${emp.id}_${dateStr}`)) continue;
+
+      const r = recordByKey[`${emp.id}_${dateStr}`];
+      let text = null;
+      if (!r) {
+        text = '出勤打刻なし';
+      } else if (r.clock_in && !r.clock_out) {
+        text = '退勤打刻なし';
+      } else if (r.clock_in && r.clock_out) {
+        if (new Date(r.clock_out) <= new Date(r.clock_in)) {
+          text = '退勤が出勤以前';
+        } else {
+          const s = r.sites || {};
+          const metrics = computeDayMetrics(dateStr, r.clock_in, r.clock_out, s.work_start, s.work_end, s.break_minutes);
+          if (metrics.workMinutes === 0) text = '勤務時間0分';
+        }
+      }
+      if (text) errors.push({ employeeId: emp.id, name: emp.name, date: dateStr, text });
+    }
+  });
+
+  errors.sort((a, b) => a.employeeId - b.employeeId || (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  return errors;
+}
+
+async function loadPunchErrors(view) {
+  if (view) punchErrorView = view;
+
+  const [y, m] = getJSTDateStr().split('-').map(Number);
+  const cur = { year: y, month: m };
+  const prev = m === 1 ? { year: y - 1, month: 12 } : { year: y, month: m - 1 };
+
+  const [curErrors, prevErrors] = await Promise.all([
+    computePunchErrors(cur.year, cur.month),
+    computePunchErrors(prev.year, prev.month)
+  ]);
+  setSummaryHighlight('punch-error-summary', curErrors.length + prevErrors.length > 0);
+
+  const target = punchErrorView === 'prev' ? prev : cur;
+  const errors = punchErrorView === 'prev' ? prevErrors : curErrors;
+  document.getElementById('punch-error-month').textContent = `${target.year}年${target.month}月`;
+  document.getElementById('punch-error-btn-current').style.background = punchErrorView === 'current' ? '' : '#9ca3af';
+  document.getElementById('punch-error-btn-prev').style.background = punchErrorView === 'prev' ? '' : '#9ca3af';
+
+  const tbody = document.getElementById('punch-error-body');
+  tbody.innerHTML = errors.length === 0
+    ? '<tr><td colspan="3">打刻エラーはありません</td></tr>'
+    : errors.map(e => `<tr><td>${e.name}</td><td>${e.date}</td><td style="color:#dc2626">${e.text}</td></tr>`).join('');
 }
 
 async function loadRequests() {

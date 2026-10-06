@@ -37,6 +37,17 @@
   </details>
 
   <details>
+    <summary id="punch-error-summary">打刻エラー一覧</summary>
+    <button id="punch-error-btn-current" class="small" onclick="loadPunchErrors('current')">当月</button>
+    <button id="punch-error-btn-prev" class="small" onclick="loadPunchErrors('prev')">前月</button>
+    <p id="punch-error-month"></p>
+    <table>
+      <thead><tr><th>氏名</th><th>日付</th><th>内容</th></tr></thead>
+      <tbody id="punch-error-body"></tbody>
+    </table>
+  </details>
+
+  <details>
     <summary>本日の打刻状況</summary>
     <button onclick="loadTodayStatus()">更新</button>
     <table>
