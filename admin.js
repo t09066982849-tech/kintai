@@ -107,6 +107,51 @@ function switchEmployeeDetailMonth(monthOffset) {
   showEmployeeDetail(employeeDetailTarget.id, employeeDetailTarget.name, monthOffset);
 }
 
+// 打刻は無いが承認済みの有給・出張・特別休暇で埋まっている日(土日・休日・今日より後は除く)を返す
+async function computeLeaveDays(employeeId, startDate, endDate, recordDates) {
+  const today = getJSTDateStr();
+  const cutoff = endDate < today ? endDate : today;
+  if (startDate > cutoff) return [];
+
+  const results = await Promise.all([
+    supabaseClient.from('employees').select('department').eq('id', employeeId).single(),
+    supabaseClient.from('schedules').select('date, end_date, type').eq('employee_id', employeeId).in('type', ['paid_leave', 'business_trip']).lte('date', endDate).or(`end_date.gte.${startDate},end_date.is.null`),
+    supabaseClient.from('special_leave_requests').select('date').eq('employee_id', employeeId).eq('status', 'approved').gte('date', startDate).lte('date', endDate),
+    supabaseClient.from('holidays').select('date').gte('date', startDate).lte('date', endDate),
+    supabaseClient.from('company_holidays').select('start_date, end_date').lte('start_date', endDate).gte('end_date', startDate)
+  ]);
+  for (const res of results) {
+    if (res.error) { console.error(res.error); return []; }
+  }
+  const [empRes, schRes, spRes, holRes, chRes] = results;
+
+  const isAccounting = empRes.data.department === 'accounting';
+  const holidaySet = new Set(holRes.data.map(h => h.date));
+  const specialDates = new Set(spRes.data.map(s => s.date));
+
+  const leaveDays = [];
+  for (let d = new Date(startDate + 'T00:00:00Z'); ; d.setUTCDate(d.getUTCDate() + 1)) {
+    const dateStr = d.toISOString().slice(0, 10);
+    if (dateStr > cutoff) break;
+
+    const weekday = d.getUTCDay();
+    if (weekday === 0 || weekday === 6) continue;
+    const isHoliday = isAccounting
+      ? holidaySet.has(dateStr)
+      : chRes.data.some(ch => ch.start_date <= dateStr && ch.end_date >= dateStr);
+    if (isHoliday) continue;
+    if (recordDates.has(dateStr)) continue;
+
+    const schedule = schRes.data.find(s => s.date <= dateStr && (s.end_date || s.date) >= dateStr);
+    if (schedule) {
+      leaveDays.push({ date: dateStr, label: schedule.type === 'paid_leave' ? '有給休暇' : '出張' });
+    } else if (specialDates.has(dateStr)) {
+      leaveDays.push({ date: dateStr, label: '特別休暇' });
+    }
+  }
+  return leaveDays;
+}
+
 // monthOffset: 0=当月、-1=前月
 async function showEmployeeDetail(employeeId, employeeName, monthOffset = 0) {
   employeeDetailTarget = { id: employeeId, name: employeeName };
@@ -136,17 +181,19 @@ async function showEmployeeDetail(employeeId, employeeName, monthOffset = 0) {
   const tbody = document.getElementById('employee-detail-body');
   if (error) {
     tbody.innerHTML = `<tr><td colspan="8">エラー: ${error.message}</td></tr>`;
-  } else if (!records || records.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8">この月の記録がありません</td></tr>';
   } else {
-    tbody.innerHTML = records.map(r => {
-      const workStart = r.sites ? r.sites.work_start : null;
-      const workEnd = r.sites ? r.sites.work_end : null;
-      const workBreak = r.sites ? r.sites.break_minutes : null;
-      const metrics = computeDayMetrics(r.date, r.clock_in, r.clock_out, workStart, workEnd, workBreak);
-      const workTime = metrics.workMinutes != null ? formatMinutesJa(metrics.workMinutes) : '-';
-      const overtimeTime = metrics.workMinutes != null ? formatMinutesJa(metrics.overtimeMinutes) : '-';
-      return `
+    const leaveDays = await computeLeaveDays(employeeId, startDate, endDate, new Set((records || []).map(r => r.date)));
+    if (records.length === 0 && leaveDays.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8">この月の記録がありません</td></tr>';
+    } else {
+      const recordRows = records.map(r => {
+        const workStart = r.sites ? r.sites.work_start : null;
+        const workEnd = r.sites ? r.sites.work_end : null;
+        const workBreak = r.sites ? r.sites.break_minutes : null;
+        const metrics = computeDayMetrics(r.date, r.clock_in, r.clock_out, workStart, workEnd, workBreak);
+        const workTime = metrics.workMinutes != null ? formatMinutesJa(metrics.workMinutes) : '-';
+        const overtimeTime = metrics.workMinutes != null ? formatMinutesJa(metrics.overtimeMinutes) : '-';
+        return { date: r.date, html: `
         <tr>
           <td>${r.date}</td>
           <td>${r.sites ? r.sites.name : '-'}</td>
@@ -157,8 +204,16 @@ async function showEmployeeDetail(employeeId, employeeName, monthOffset = 0) {
           <td>${r.clock_in_address || '-'}</td>
           <td>${r.clock_out_address || '-'}</td>
         </tr>
-      `;
-    }).join('');
+      ` };
+      });
+      const leaveRows = leaveDays.map(l => ({
+        date: l.date,
+        html: `<tr><td>${l.date}</td><td colspan="7" style="color:#2563eb">${l.label}</td></tr>`
+      }));
+      tbody.innerHTML = recordRows.concat(leaveRows)
+        .sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0)
+        .map(r => r.html).join('');
+    }
   }
 
   document.getElementById('employee-detail-modal-bg').style.display = 'flex';

@@ -259,6 +259,7 @@ async function loadHistory() {
   const cutoff = endDate < todayStr ? endDate : todayStr;
 
   const missingDates = [];
+  const leaveDays = []; // 打刻は無いが承認済みの有給・出張・特別休暇で埋まっている日
   if (startDate <= cutoff) {
     for (let d = new Date(startDate + 'T00:00:00Z'); d.toISOString().slice(0,10) <= cutoff; d.setUTCDate(d.getUTCDate() + 1)) {
       const dateStr = d.toISOString().slice(0, 10);
@@ -271,12 +272,18 @@ async function loadHistory() {
         if (inCompanyHoliday) continue;
       }
       if (existingDates.has(dateStr)) continue;
-      const excludedBySchedule = (schedules || []).some(s => {
+      const leaveSchedule = (schedules || []).find(s => {
         const sEnd = s.end_date || s.date;
         return s.date <= dateStr && sEnd >= dateStr;
       });
-      if (excludedBySchedule) continue;
-      if (specialLeaveStatusByDate[dateStr] === 'approved') continue;
+      if (leaveSchedule) {
+        leaveDays.push({ date: dateStr, label: leaveSchedule.type === 'paid_leave' ? '有給休暇' : '出張' });
+        continue;
+      }
+      if (specialLeaveStatusByDate[dateStr] === 'approved') {
+        leaveDays.push({ date: dateStr, label: '特別休暇' });
+        continue;
+      }
       missingDates.push(dateStr);
     }
   }
@@ -284,7 +291,7 @@ async function loadHistory() {
   renderMissingPunchAlert(missingDates, records, todayStr);
 
   const tbody = document.getElementById('history-body');
-  if (records.length === 0 && missingDates.length === 0) {
+  if (records.length === 0 && missingDates.length === 0 && leaveDays.length === 0) {
     tbody.innerHTML = '<tr><td colspan="6">記録がありません</td></tr>';
     document.getElementById('overtime-summary').innerHTML = '';
     return;
@@ -342,7 +349,12 @@ async function loadHistory() {
     return { date: dateStr, html: `<tr><td>${dateStr}</td><td>-</td><td>-</td><td>-</td><td>記録なし</td><td>${actionCell}</td></tr>` };
   });
 
-  const allRows = existingRows.concat(missingRows).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  const leaveRows = leaveDays.map(l => ({
+    date: l.date,
+    html: `<tr><td>${l.date}</td><td>-</td><td>-</td><td>-</td><td style="color:#2563eb">${l.label}</td><td>-</td></tr>`
+  }));
+
+  const allRows = existingRows.concat(missingRows, leaveRows).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
   tbody.innerHTML = allRows.map(r => r.html).join('');
 
   const overtimeHours = Math.floor(totalOvertimeMinutes / 60);
