@@ -82,6 +82,13 @@ const ARK_TRAVEL_RATES = {
   outside: { daily_allowance: 7000, hotel_fee: 13000 }
 };
 
+// 日帰り(日数が1日)の日当は、旅費規程・道内道外に関わらず全員一律
+const DAY_TRIP_ALLOWANCE = 2500;
+
+function dailyAllowanceFor(rate, days) {
+  return Number(days) === 1 ? DAY_TRIP_ALLOWANCE : rate.daily_allowance;
+}
+
 function getApplicableTravelRate(zone) {
   const addressee = document.getElementById('new-addressee').value;
   if (addressee === 'アークコーポレーション株式会社' && employee.id === 7) {
@@ -103,7 +110,8 @@ function updateEstimate() {
   }
 
   const nights = Math.max(0, days - 1); // 宿泊数 = 日数 - 1
-  const allowanceTotal = rate.daily_allowance * days;
+  const dailyAllowance = dailyAllowanceFor(rate, days);
+  const allowanceTotal = dailyAllowance * days;
 
   let hotelText = '';
   let total = allowanceTotal;
@@ -117,7 +125,7 @@ function updateEstimate() {
     hotelText = ` / 宿泊費 ${hotelArrangementLabel[arrangement]}(本人への支給なし)`;
   }
 
-  box.textContent = `概算:日当 ${rate.daily_allowance}円 × ${days}日 = ${allowanceTotal}円` + hotelText +
+  box.textContent = `概算:日当 ${dailyAllowance}円 × ${days}日 = ${allowanceTotal}円` + hotelText +
     ` / 合計 ${total}円(概算です。実費と異なる場合があります)`;
 }
 
@@ -195,13 +203,14 @@ async function submitRequest() {
     const rate = getApplicableTravelRate(zone);
     if (rate) {
       const nights = Math.max(0, Number(days) - 1);
-      payload.daily_allowance = rate.daily_allowance;
+      const dailyAllowance = dailyAllowanceFor(rate, days);
+      payload.daily_allowance = dailyAllowance;
       if (hotelArrangement === 'self') {
         payload.hotel_fee = rate.hotel_fee;
-        payload.total_amount = (rate.daily_allowance * Number(days)) + (rate.hotel_fee * nights);
+        payload.total_amount = (dailyAllowance * Number(days)) + (rate.hotel_fee * nights);
       } else {
         payload.hotel_fee = 0;
-        payload.total_amount = rate.daily_allowance * Number(days);
+        payload.total_amount = dailyAllowance * Number(days);
       }
     }
   }
