@@ -476,13 +476,19 @@ async function reject(requestId) {
   loadRequests();
 }
 
+// 並び順は「有効な現場(sort_order順)→無効な現場」。無効化した現場は自動で一番下になる
 async function loadSites() {
-  const { data: sites, error } = await supabaseClient.from('sites').select('*').order('id');
+  const { data: sites, error } = await supabaseClient
+    .from('sites')
+    .select('*')
+    .order('is_active', { ascending: false })
+    .order('sort_order', { ascending: true, nullsFirst: false })
+    .order('id');
   if (error) { console.error(error); return; }
 
   const tbody = document.getElementById('sites-body');
   tbody.innerHTML = sites.map(s => `
-    <tr>
+    <tr data-site-id="${s.id}" ${s.is_active ? 'draggable="true" style="cursor:grab"' : ''}>
       <td>${s.name}</td>
       <td>${(s.work_start || '07:00:00').slice(0, 5)} 〜 ${(s.work_end || '17:00:00').slice(0, 5)}</td>
       <td>${s.is_active ? '<span class="status-approved">有効</span>' : '<span class="status-rejected">無効</span>'}</td>
@@ -496,6 +502,46 @@ async function loadSites() {
       </td>
     </tr>
   `).join('');
+
+  enableSiteDragAndDrop();
+}
+
+// 有効な現場の行をドラッグ&ドロップで並べ替える(無効な現場は動かせず、有効な現場より上にも行かない)
+let draggingSiteRow = null;
+
+function enableSiteDragAndDrop() {
+  document.querySelectorAll('#sites-body tr[draggable="true"]').forEach(row => {
+    row.addEventListener('dragstart', e => {
+      draggingSiteRow = row;
+      row.style.opacity = '0.4';
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    row.addEventListener('dragover', e => {
+      if (!draggingSiteRow) return;
+      e.preventDefault();
+      if (draggingSiteRow === row) return;
+      const rect = row.getBoundingClientRect();
+      const placeAfter = e.clientY > rect.top + rect.height / 2;
+      row.parentNode.insertBefore(draggingSiteRow, placeAfter ? row.nextSibling : row);
+    });
+    row.addEventListener('drop', e => e.preventDefault());
+    row.addEventListener('dragend', e => {
+      row.style.opacity = '';
+      draggingSiteRow = null;
+      if (e.dataTransfer.dropEffect === 'none') { loadSites(); return; }
+      saveSiteOrder();
+    });
+  });
+}
+
+async function saveSiteOrder() {
+  const rows = Array.from(document.querySelectorAll('#sites-body tr'));
+  const results = await Promise.all(rows.map((row, i) =>
+    supabaseClient.from('sites').update({ sort_order: i + 1 }).eq('id', Number(row.dataset.siteId)).select()
+  ));
+  const failed = results.some(r => r.error || !r.data || r.data.length === 0);
+  if (failed) alert('並び順の保存に失敗しました。もう一度お試しください。');
+  loadSites();
 }
 
 let editingSiteId = null;
