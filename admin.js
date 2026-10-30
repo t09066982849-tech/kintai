@@ -152,7 +152,18 @@ async function computeLeaveDays(employeeId, startDate, endDate, recordDates) {
   return leaveDays;
 }
 
-// monthOffset: 0=当月、-1=前月
+// 「当月」+ 過去11か月分(月名)のボタンを並べ、表示中の月だけ色を付ける(1年分)
+function renderEmployeeDetailMonthButtons(activeOffset, todayYear, todayMonth) {
+  const buttons = [];
+  for (let offset = 0; offset >= -11; offset--) {
+    const label = offset === 0 ? '当月' : `${new Date(Date.UTC(todayYear, todayMonth - 1 + offset, 1)).getUTCMonth() + 1}月`;
+    const bg = offset === activeOffset ? '' : 'background:#9ca3af';
+    buttons.push(`<button class="small" style="${bg}" onclick="switchEmployeeDetailMonth(${offset})">${label}</button>`);
+  }
+  document.getElementById('employee-detail-month-buttons').innerHTML = buttons.join(' ');
+}
+
+// monthOffset: 0=当月、-1=前月 ... -11=11か月前
 async function showEmployeeDetail(employeeId, employeeName, monthOffset = 0) {
   employeeDetailTarget = { id: employeeId, name: employeeName };
 
@@ -161,8 +172,7 @@ async function showEmployeeDetail(employeeId, employeeName, monthOffset = 0) {
   const targetDate = new Date(Date.UTC(todayYear, todayMonth - 1 + monthOffset, 1));
   const year = targetDate.getUTCFullYear();
   const month = targetDate.getUTCMonth() + 1;
-  document.getElementById('employee-detail-btn-current').style.background = monthOffset === 0 ? '' : '#9ca3af';
-  document.getElementById('employee-detail-btn-prev').style.background = monthOffset === -1 ? '' : '#9ca3af';
+  renderEmployeeDetailMonthButtons(monthOffset, todayYear, todayMonth);
   const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
   const lastDay = new Date(year, month, 0).getDate();
   const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
