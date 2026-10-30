@@ -1120,14 +1120,40 @@ async function approveMissingRequest(id) {
   const clockInIso = `${req.date}T${req.requested_clock_in}+09:00`;
   const clockOutIso = req.requested_clock_out ? `${req.date}T${req.requested_clock_out}+09:00` : null;
 
-  const { error: insertError } = await supabaseClient.from('time_records').insert({
-    employee_id: req.employee_id,
-    date: req.date,
-    site_id: req.site_id,
-    clock_in: clockInIso,
-    clock_out: clockOutIso
-  });
-  if (insertError) { alert('エラー: ' + insertError.message); return; }
+  // 申請後にその日の打刻が入っていると、1人1日1行の制約で追加できないため、既存の記録を確認する
+  const { data: existing, error: existingError } = await supabaseClient
+    .from('time_records')
+    .select('id, clock_in, clock_out, sites(name)')
+    .eq('employee_id', req.employee_id)
+    .eq('date', req.date)
+    .maybeSingle();
+  if (existingError) { alert('エラー: ' + existingError.message); return; }
+
+  if (existing) {
+    const siteName = existing.sites ? existing.sites.name : '-';
+    const ok = confirm(`すでにこの日の打刻があります(現場: ${siteName} / 出勤 ${fmtTime(existing.clock_in)} / 退勤 ${fmtTime(existing.clock_out)})。\n申請の内容で上書きしますか?`);
+    if (!ok) return;
+
+    // 申請に退勤時刻が無いときは、既存の退勤時刻を残す
+    const updates = { site_id: req.site_id, clock_in: clockInIso };
+    if (clockOutIso) updates.clock_out = clockOutIso;
+    const { data: updated, error: overwriteError } = await supabaseClient
+      .from('time_records')
+      .update(updates)
+      .eq('id', existing.id)
+      .select();
+    if (overwriteError) { alert('エラー: ' + overwriteError.message); return; }
+    if (!updated || updated.length === 0) { alert('エラー: 打刻記録を上書きできませんでした(権限を確認してください)'); return; }
+  } else {
+    const { error: insertError } = await supabaseClient.from('time_records').insert({
+      employee_id: req.employee_id,
+      date: req.date,
+      site_id: req.site_id,
+      clock_in: clockInIso,
+      clock_out: clockOutIso
+    });
+    if (insertError) { alert('エラー: ' + insertError.message); return; }
+  }
 
   const { error: updateError } = await supabaseClient
     .from('missing_record_requests')
