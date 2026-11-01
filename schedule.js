@@ -152,8 +152,7 @@ function renderWeek(week) {
     const holidayName = holidaysByDate[dateStr];
     const isHoliday = !!holidayName;
     html += `<div class="cal-daycell ${weekday===0?'cal-sun':''} ${weekday===6?'cal-sat':''} ${isHoliday?'cal-holiday':''}" style="grid-column:${col+1}; grid-row:1/-1" onclick="openAddModal('${dateStr}')">
-      <div class="cal-daynum">${day}</div>
-      ${isHoliday ? `<div class="cal-holiday-name">${holidayName}</div>` : ''}
+      <div class="cal-dayhead"><span class="cal-daynum">${day}</span>${isHoliday ? `<span class="cal-holiday-name" title="${holidayName}">${holidayName}</span>` : ''}</div>
     </div>`;
   });
 

@@ -55,7 +55,9 @@ summary { cursor: pointer; font-size: 1.17em; font-weight: bold; }
 .cal-daycell.cal-sun .cal-daynum { color: #dc2626; }
 .cal-daycell.cal-sat .cal-daynum { color: #2563eb; }
 .cal-daycell.cal-holiday .cal-daynum { color: #dc2626; }
-.cal-holiday-name { font-size: 9px; color: #dc2626; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 日付の数字と祝日名を1行に並べ、予定の帯(2行目以降)に隠れないようにする */
+.cal-dayhead { display: flex; align-items: baseline; gap: 3px; height: 14px; overflow: hidden; }
+.cal-holiday-name { font-size: 9px; color: #dc2626; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 
 .cal-event-bar {
   font-size: 11px;
