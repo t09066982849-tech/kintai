@@ -71,12 +71,29 @@ async function loadTodayStatus() {
   const recordByEmployee = {};
   (records || []).forEach(r => { recordByEmployee[r.employee_id] = r; });
 
+  // 今日が承認済みの有給・出張・特別休暇の人は、打刻が無くても「未出勤」にしない
+  const [schRes, spRes] = await Promise.all([
+    supabaseClient.from('schedules').select('employee_id, date, end_date, type').in('type', ['paid_leave', 'business_trip']).lte('date', today).or(`end_date.gte.${today},end_date.is.null`),
+    supabaseClient.from('special_leave_requests').select('employee_id').eq('status', 'approved').eq('date', today)
+  ]);
+  if (schRes.error) console.error(schRes.error);
+  if (spRes.error) console.error(spRes.error);
+  const leaveLabelByEmployee = {};
+  (schRes.data || []).forEach(s => {
+    if ((s.end_date || s.date) >= today) leaveLabelByEmployee[s.employee_id] = s.type === 'paid_leave' ? '有給休暇' : '出張';
+  });
+  (spRes.data || []).forEach(s => { leaveLabelByEmployee[s.employee_id] = '特別休暇'; });
+
   const tbody = document.getElementById('today-status-body');
   tbody.innerHTML = allEmployees.map(emp => {
     const r = recordByEmployee[emp.id];
     let status = 'none';
     if (r && r.clock_in && !r.clock_out) status = 'working';
     else if (r && r.clock_in && r.clock_out) status = 'done';
+    const leaveLabel = !r ? leaveLabelByEmployee[emp.id] : null;
+    const statusHtml = leaveLabel
+      ? `<span style="color:#2563eb; font-weight:bold">${leaveLabel}</span>`
+      : `<span class="${statusClass[status]}">${statusLabel[status]}</span>`;
 
     const workStart = r && r.sites ? r.sites.work_start : null;
     const workEnd = r && r.sites ? r.sites.work_end : null;
@@ -90,7 +107,7 @@ async function loadTodayStatus() {
         <td>${r && r.sites ? r.sites.name : '-'}</td>
         <td>${r ? timeCellHtml(r.clock_in ? new Date(r.clock_in) : null, metrics.adjustedIn) : '-'}</td>
         <td>${r ? timeCellHtml(r.clock_out ? new Date(r.clock_out) : null, metrics.adjustedOut) : '-'}</td>
-        <td><span class="${statusClass[status]}">${statusLabel[status]}</span></td>
+        <td>${statusHtml}</td>
       </tr>
     `;
   }).join('');
