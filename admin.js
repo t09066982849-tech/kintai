@@ -250,8 +250,12 @@ function closeEmployeeDetail() {
   document.getElementById('employee-detail-modal-bg').style.display = 'none';
 }
 
-// 打刻エラー一覧の対象(嶋木・松浦・佐藤・山崎・平野・川股・新妻)。全員展開後は絞り込みを外すこと
-const PUNCH_CHECK_TARGET_IDS = [1, 22, 29, 30, 31, 35, 36];
+// 打刻エラー一覧の対象は、有効で管理者ではない従業員のうち、役員・テスト用(id 33)を除く全員(2026-11-02〜)
+const PUNCH_CHECK_EXCLUDED_IDS = [...EXCLUDED_EXECUTIVE_IDS, 33];
+// 本格運用開始(11/2)より前からkintaiを使っていた人(嶋木・松浦・佐藤・山崎・平野・川股・新妻)。
+// それ以外の人は旧システムで打刻していたため、開始日より前の日は判定しない
+const PUNCH_CHECK_PILOT_IDS = [1, 22, 29, 30, 31, 35, 36];
+const PUNCH_CHECK_START_DATE = '2026-11-02';
 let punchErrorView = 'current';
 
 // 指定月の打刻エラーを洗い出す(今日より前の日だけ対象)。判定は打刻漏れメールと同じ基準。
@@ -263,9 +267,17 @@ async function computePunchErrors(year, month) {
   const today = getJSTDateStr();
   if (startDate >= today) return [];
 
-  const ids = PUNCH_CHECK_TARGET_IDS;
+  const { data: empData, error: empError } = await supabaseClient
+    .from('employees')
+    .select('id, name, department, hire_date')
+    .eq('is_admin', false)
+    .eq('is_active', true);
+  if (empError) { console.error(empError); return []; }
+  const targetEmployees = (empData || []).filter(e => !PUNCH_CHECK_EXCLUDED_IDS.includes(e.id));
+  const ids = targetEmployees.map(e => e.id);
+
   const results = await Promise.all([
-    supabaseClient.from('employees').select('id, name, department, hire_date').in('id', ids).eq('is_active', true),
+    Promise.resolve({ data: targetEmployees, error: null }),
     supabaseClient.from('time_records').select('employee_id, date, clock_in, clock_out, sites(work_start, work_end, break_minutes)').in('employee_id', ids).gte('date', startDate).lte('date', endDate),
     supabaseClient.from('schedules').select('employee_id, date, end_date').in('employee_id', ids).in('type', ['paid_leave', 'business_trip']).lte('date', endDate).or(`end_date.gte.${startDate},end_date.is.null`),
     supabaseClient.from('special_leave_requests').select('employee_id, date').in('employee_id', ids).eq('status', 'approved').gte('date', startDate).lte('date', endDate),
@@ -296,6 +308,7 @@ async function computePunchErrors(year, month) {
         : chRes.data.some(ch => ch.start_date <= dateStr && ch.end_date >= dateStr);
       if (isHoliday) continue;
       if (emp.hire_date && dateStr < emp.hire_date) continue;
+      if (!PUNCH_CHECK_PILOT_IDS.includes(emp.id) && dateStr < PUNCH_CHECK_START_DATE) continue;
 
       const onLeave = schRes.data.some(s => s.employee_id === emp.id && s.date <= dateStr && (s.end_date || s.date) >= dateStr);
       if (onLeave || specialKeys.has(`${emp.id}_${dateStr}`)) continue;
