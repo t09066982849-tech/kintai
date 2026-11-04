@@ -124,14 +124,23 @@ function switchEmployeeDetailMonth(monthOffset) {
   showEmployeeDetail(employeeDetailTarget.id, employeeDetailTarget.name, monthOffset);
 }
 
-// 打刻は無いが承認済みの有給・出張・特別休暇で埋まっている日(土日・休日・今日より後は除く)を返す
+// 個人詳細で「打刻なし」を表示し始める日(全員共通。これより前は旧システムの運用のため表示しない)
+const DETAIL_MISSING_START_DATE = '2026-11-01';
+
+function dateWithWeekday(dateStr) {
+  const wd = new Date(dateStr + 'T00:00:00Z').getUTCDay();
+  const color = wd === 0 ? 'color:#dc2626' : wd === 6 ? 'color:#2563eb' : '';
+  return `${dateStr}<span style="${color}">(${['日', '月', '火', '水', '木', '金', '土'][wd]})</span>`;
+}
+
+// 打刻は無い日のうち、承認済みの有給・出張・特別休暇の日と、出勤すべき日の打刻なし(土日・休日・今日より後は除く)を返す
 async function computeLeaveDays(employeeId, startDate, endDate, recordDates) {
   const today = getJSTDateStr();
   const cutoff = endDate < today ? endDate : today;
   if (startDate > cutoff) return [];
 
   const results = await Promise.all([
-    supabaseClient.from('employees').select('department').eq('id', employeeId).single(),
+    supabaseClient.from('employees').select('department, hire_date').eq('id', employeeId).single(),
     supabaseClient.from('schedules').select('date, end_date, type').eq('employee_id', employeeId).in('type', ['paid_leave', 'business_trip']).lte('date', endDate).or(`end_date.gte.${startDate},end_date.is.null`),
     supabaseClient.from('special_leave_requests').select('date').eq('employee_id', employeeId).eq('status', 'approved').gte('date', startDate).lte('date', endDate),
     supabaseClient.from('holidays').select('date').gte('date', startDate).lte('date', endDate),
@@ -164,6 +173,9 @@ async function computeLeaveDays(employeeId, startDate, endDate, recordDates) {
       leaveDays.push({ date: dateStr, label: schedule.type === 'paid_leave' ? '有給休暇' : '出張' });
     } else if (specialDates.has(dateStr)) {
       leaveDays.push({ date: dateStr, label: '特別休暇' });
+    } else if (dateStr >= DETAIL_MISSING_START_DATE && !(empRes.data.hire_date && dateStr < empRes.data.hire_date)) {
+      // 出勤すべき日なのに打刻も休暇もない日(今日はまだ打刻前の可能性があるので別表示)
+      leaveDays.push({ date: dateStr, label: dateStr === today ? '本日未打刻' : '打刻なし', missing: true, isToday: dateStr === today });
     }
   }
   return leaveDays;
@@ -222,7 +234,7 @@ async function showEmployeeDetail(employeeId, employeeName, monthOffset = 0) {
         const overtimeTime = metrics.workMinutes != null ? formatMinutesJa(metrics.overtimeMinutes) : '-';
         return { date: r.date, html: `
         <tr>
-          <td>${r.date}</td>
+          <td>${dateWithWeekday(r.date)}</td>
           <td>${r.sites ? r.sites.name : '-'}</td>
           <td>${timeCellHtml(r.clock_in ? new Date(r.clock_in) : null, metrics.adjustedIn)}</td>
           <td>${timeCellHtml(r.clock_out ? new Date(r.clock_out) : null, metrics.adjustedOut)}</td>
@@ -235,7 +247,7 @@ async function showEmployeeDetail(employeeId, employeeName, monthOffset = 0) {
       });
       const leaveRows = leaveDays.map(l => ({
         date: l.date,
-        html: `<tr><td>${l.date}</td><td colspan="7" style="color:#2563eb">${l.label}</td></tr>`
+        html: `<tr><td>${dateWithWeekday(l.date)}</td><td colspan="7" style="color:${l.missing ? (l.isToday ? '#6b7280' : '#dc2626') : '#2563eb'}">${l.label}</td></tr>`
       }));
       tbody.innerHTML = recordRows.concat(leaveRows)
         .sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0)
