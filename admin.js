@@ -16,8 +16,8 @@ function setSummaryHighlight(id, hasItems) {
   if (el) el.style.color = hasItems ? '#dc2626' : '';
 }
 
-// 役員(社長・常務・伊豆倉鈴雄・大角賢一)は個人別の有給管理簿も無く、集計系の対象外
-const EXCLUDED_EXECUTIVE_IDS = [6, 7, 8, 9];
+// 役員(社長・常務・伊豆倉鈴雄・大角賢一・佐々木紀康(常務))は個人別の有給管理簿も無く、集計系の対象外
+const EXCLUDED_EXECUTIVE_IDS = [6, 7, 8, 9, 10];
 
 async function init() {
   employee = await requireEmployee();
