@@ -134,11 +134,11 @@
 </div>
 
 <div class="modal-bg" id="employee-detail-modal-bg">
-  <div class="modal" style="max-width: 900px;">
+  <div class="modal" style="max-width: min(1250px, 95vw);">
     <h3 id="employee-detail-name"></h3>
     <div id="employee-detail-month-buttons" style="display:flex; flex-wrap:wrap; gap:4px;"></div>
     <p id="employee-detail-month"></p>
-    <table>
+    <table style="white-space: nowrap;">
       <thead><tr><th>日付</th><th>現場</th><th>出勤</th><th>退勤</th><th>勤務時間</th><th>残業時間</th><th>出勤住所</th><th>退勤住所</th></tr></thead>
       <tbody id="employee-detail-body"></tbody>
     </table>
