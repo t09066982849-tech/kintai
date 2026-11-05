@@ -9,6 +9,11 @@ button.small { width: auto; padding: 4px 10px; font-size: 13px; }
 #status { margin-top: 20px; padding: 12px; background: #f3f4f6; border-radius: 6px; white-space: pre-line; }
 @keyframes blink-alert { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 #missing-punch-alert:not(:empty) { animation: blink-alert 1.5s ease-in-out infinite; }
+#missing-punch-alert { position: absolute; right: 0; bottom: 0; font-size: 14px; color: #dc2626; text-align: right; }
+/* スマホでは時計・メニューに重ならないよう、メニューの下に通常の流れで表示する */
+@media (max-width: 600px) {
+  #missing-punch-alert { position: static; text-align: left; margin: 6px 0; }
+}
 table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
 th, td { border: 1px solid #ddd; padding: 6px; text-align: center; }
 th { background: #f3f4f6; }

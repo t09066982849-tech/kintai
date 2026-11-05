@@ -190,7 +190,12 @@ function renderMissingPunchAlert(missingDates, records, todayStr) {
   });
   issues.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
 
-  el.innerHTML = issues.map(i => `<div>⚠ ${i.text}</div>`).join('');
+  // 日付の新しい直近3件だけ表示し、残りは「その他○件」にまとめる(画面が埋まらないように)
+  const MAX_SHOWN = 3;
+  const shown = issues.slice(-MAX_SHOWN);
+  const restCount = issues.length - shown.length;
+  el.innerHTML = shown.map(i => `<div>⚠ ${i.text}</div>`).join('')
+    + (restCount > 0 ? `<div>⚠ その他${restCount}件</div>` : '');
 }
 
 async function loadHistory() {
