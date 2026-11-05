@@ -152,7 +152,7 @@ function toggleTypeFields() {
   const type = document.getElementById('new-type').value;
   const isTrip = type === 'business_trip';
   document.getElementById('trip-fields').style.display = isTrip ? 'block' : 'none';
-  document.getElementById('reason-label').textContent = isTrip ? '用件' : '事由';
+  document.getElementById('reason-label').textContent = isTrip ? '用件' : '事由(任意)';
   document.getElementById('new-reason').placeholder = isTrip ? '例:○○現場視察の為' : '例:私用の為';
   if (isTrip) updateEstimate();
 }
@@ -165,7 +165,8 @@ async function submitRequest() {
   const reason = document.getElementById('new-reason').value.trim();
   const contact = document.getElementById('new-contact').value.trim();
 
-  if (!start || !end || !days || !reason) { alert('必須項目を入力してください'); return; }
+  // 有給の事由は任意(空なら空文字で保存)。出張の用件は必須
+  if (!start || !end || !days || (type === 'business_trip' && !reason)) { alert('必須項目を入力してください'); return; }
   if (end < start) { alert('終了日は開始日以降の日付にしてください'); return; }
 
   const attachmentFiles =['new-attachment-1', 'new-attachment-2', 'new-attachment-3']
