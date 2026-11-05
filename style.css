@@ -8,6 +8,8 @@ button { background: #2563eb; color: white; border: none; border-radius: 6px; cu
 button.small { width: auto; padding: 4px 10px; font-size: 13px; }
 #status { margin-top: 20px; padding: 12px; background: #f3f4f6; border-radius: 6px; white-space: pre-line; }
 @keyframes blink-alert { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+/* 残り有給・今月の残業。画面幅に合わせて文字を縮め、スマホでも1行に収める */
+.header-stats { display: flex; gap: 16px; font-size: clamp(13px, 4.2vw, 28px); font-weight: bold; margin: 8px 0; white-space: nowrap; }
 #missing-punch-alert:not(:empty) { animation: blink-alert 1.5s ease-in-out infinite; }
 #missing-punch-alert { position: absolute; right: 0; bottom: 0; font-size: 14px; color: #dc2626; text-align: right; }
 /* スマホでは時計・メニューに重ならないよう、メニューの下に通常の流れで表示する */
