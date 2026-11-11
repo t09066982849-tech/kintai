@@ -18,6 +18,9 @@ function setSummaryHighlight(id, hasItems) {
 
 // 役員(社長・常務・伊豆倉鈴雄・大角賢一・佐々木紀康(常務))は個人別の有給管理簿も無く、集計系の対象外
 const EXCLUDED_EXECUTIVE_IDS = [6, 7, 8, 9, 10];
+// テスト用アカウント(id 33)。集計・Excel出力・打刻状況・打刻エラー一覧から外す(DBには残す)
+const TEST_EMPLOYEE_IDS = [33];
+const EXCLUDED_FROM_REPORT_IDS = [...EXCLUDED_EXECUTIVE_IDS, ...TEST_EMPLOYEE_IDS];
 
 async function init() {
   employee = await requireEmployee();
@@ -60,7 +63,7 @@ async function loadTodayStatus() {
     .eq('is_active', true)
     .order('name');
   if (empError) { console.error(empError); return; }
-  const allEmployees = (rawEmployees || []).filter(e => !EXCLUDED_EXECUTIVE_IDS.includes(e.id));
+  const allEmployees = (rawEmployees || []).filter(e => !EXCLUDED_FROM_REPORT_IDS.includes(e.id));
 
   const { data: records, error } = await supabaseClient
     .from('time_records')
@@ -263,7 +266,7 @@ function closeEmployeeDetail() {
 }
 
 // 打刻エラー一覧の対象は、有効で管理者ではない従業員のうち、役員・テスト用(id 33)を除く全員(2026-11-02〜)
-const PUNCH_CHECK_EXCLUDED_IDS = [...EXCLUDED_EXECUTIVE_IDS, 33];
+const PUNCH_CHECK_EXCLUDED_IDS = EXCLUDED_FROM_REPORT_IDS;
 // 本格運用開始(11/2)より前からkintaiを使っていた人(嶋木・松浦・佐藤・山崎・平野・川股・新妻)。
 // それ以外の人は旧システムで打刻していたため、開始日より前の日は判定しない
 const PUNCH_CHECK_PILOT_IDS = [1, 22, 29, 30, 31, 35, 36];
@@ -691,7 +694,7 @@ async function exportExcel() {
     .select('id, name, department, department_label')
     .eq('is_admin', false)
     .order('name');
-  const allEmployees = (rawEmployees || []).filter(e => !EXCLUDED_EXECUTIVE_IDS.includes(e.id));
+  const allEmployees = (rawEmployees || []).filter(e => !EXCLUDED_FROM_REPORT_IDS.includes(e.id));
 
   if (empError) { alert('エラー: ' + empError.message); return; }
 
@@ -907,7 +910,7 @@ async function exportAnnualSummary() {
     .eq('is_admin', false)
     .order('id');
   if (empError) { alert('エラー: ' + empError.message); return; }
-  const allEmployees = (rawEmployees || []).filter(e => !EXCLUDED_EXECUTIVE_IDS.includes(e.id));
+  const allEmployees = (rawEmployees || []).filter(e => !EXCLUDED_FROM_REPORT_IDS.includes(e.id));
 
   const { data: records, error } = await supabaseClient
     .from('time_records')
