@@ -774,7 +774,7 @@ async function exportExcel() {
       if (isHoliday) group.holidayDays++; else group.weekdayDays++;
       group.workMinutesTotal += metrics.workMinutes;
       group.overtimeMinutesTotal += metrics.overtimeMinutes;
-      group.breakMinutesTotal += (workBreak || 0);
+      group.breakMinutesTotal += metrics.breakMinutes;
     }
 
     group.rows.push({

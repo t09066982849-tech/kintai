@@ -104,7 +104,27 @@ function getJSTDateStr() {
 // 出退勤時刻を、現場の所定時間(work_start/work_end)を基準に補正する。
 // 早出は最大30分、残業は最大1時間まで認め、それを超える分は所定時刻-30分/+1時間で打ち切る。
 // 遅刻・早上がりはそのまま(補正しない)。
-// 勤務時間は現場ごとの休憩時間(break_minutes)を差し引いた実労働時間。
+// 勤務時間は、休憩時間帯のうち実際に勤務時間に入っている分だけを差し引いた実労働時間。
+// 休憩時間帯は現場の休憩時間(break_minutes)で決める(事務所60分=昼のみ、土木などの現場90分=10時・昼・15時)。
+// 60分・90分以外の現場は、従来どおり休憩時間(分)を固定で引く。
+const BREAK_SLOTS_BY_MINUTES = {
+  60: [['12:00', '13:00']],
+  90: [['10:00', '10:15'], ['12:00', '13:00'], ['15:00', '15:15']]
+};
+
+function computeBreakMinutes(dateStr, adjustedIn, adjustedOut, breakMinutes) {
+  const slots = BREAK_SLOTS_BY_MINUTES[breakMinutes];
+  if (!slots) return breakMinutes || 0;
+  let total = 0;
+  for (const [s, e] of slots) {
+    const slotStart = new Date(dateStr + 'T' + s + ':00+09:00');
+    const slotEnd = new Date(dateStr + 'T' + e + ':00+09:00');
+    const overlap = Math.min(adjustedOut, slotEnd) - Math.max(adjustedIn, slotStart);
+    if (overlap > 0) total += Math.round(overlap / 60000);
+  }
+  return total;
+}
+
 function computeDayMetrics(dateStr, clockIn, clockOut, workStart, workEnd, breakMinutes) {
   const startStr = (workStart || '07:00').slice(0, 5);
   const endStr = (workEnd || '17:00').slice(0, 5);
@@ -121,14 +141,16 @@ function computeDayMetrics(dateStr, clockIn, clockOut, workStart, workEnd, break
 
   let workMinutes = null;
   let overtimeMinutes = 0;
+  let appliedBreakMinutes = 0;
   if (adjustedIn && adjustedOut) {
     const rawMinutes = Math.round((adjustedOut - adjustedIn) / 60000);
-    workMinutes = Math.max(0, rawMinutes - (breakMinutes || 0));
+    appliedBreakMinutes = computeBreakMinutes(dateStr, adjustedIn, adjustedOut, breakMinutes);
+    workMinutes = Math.max(0, rawMinutes - appliedBreakMinutes);
     // 残業は労基法の法定労働時間(1日8時間=480分)を実労働時間が超えた分
     overtimeMinutes = Math.max(0, workMinutes - 480);
   }
 
-  return { adjustedIn, adjustedOut, workMinutes, overtimeMinutes, scheduledStart, scheduledEnd, earlyCap, lateCap };
+  return { adjustedIn, adjustedOut, workMinutes, overtimeMinutes, breakMinutes: appliedBreakMinutes, scheduledStart, scheduledEnd, earlyCap, lateCap };
 }
 
 function formatMinutesJa(mins) {
