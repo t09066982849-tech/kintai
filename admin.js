@@ -116,6 +116,11 @@ async function loadTodayStatus() {
   }).join('');
 }
 
+// 利用者が入力した文字を画面(innerHTML)に出すときの無害化
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function fmtTime(t) {
   return t ? new Date(t).toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'}) : '-';
 }
@@ -447,7 +452,7 @@ async function loadRequests() {
         <tr>
           <td>${i.employees ? i.employees.name : ''}</td>
           <td>${i.date}</td>
-          <td colspan="6" style="color:#2563eb">特別休暇希望(打刻なし)</td>
+          <td colspan="6" style="color:#2563eb">特別休暇希望(打刻なし)${i.reason ? `<br><span style="color:#374151">理由:${escapeHtml(i.reason)}</span>` : ''}</td>
           <td>
             <button class="small" onclick="approveSpecialLeave(${i.id})">承認</button>
             <button class="small" style="background:#9ca3af" onclick="rejectSpecialLeave(${i.id})">却下</button>

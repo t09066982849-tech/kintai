@@ -348,13 +348,13 @@ async function loadHistory() {
     if (specialStatus === 'pending') {
       actionCell = `<span class="status-pending">特別休暇申請中</span>`;
     } else if (specialStatus === 'rejected') {
-      actionCell = `<span class="status-rejected">特別休暇却下</span> <button class="small" onclick="submitSpecialLeave('${dateStr}')">再申請</button>`;
+      actionCell = `<span class="status-rejected">特別休暇却下</span> <button class="small" onclick="openSpecialModal('${dateStr}')">再申請</button>`;
     } else if (status === 'pending') {
       actionCell = `<span class="status-pending">申請中</span>`;
     } else if (status === 'rejected') {
       actionCell = `<span class="status-rejected">却下</span> <button class="small" onclick="openMissingModal('${dateStr}')">再申請</button>`;
     } else {
-      actionCell = `<button class="small" onclick="openMissingModal('${dateStr}')">記録を追加申請</button> <button class="small" style="background:#9ca3af" onclick="submitSpecialLeave('${dateStr}')">特別休暇として申請</button>`;
+      actionCell = `<button class="small" onclick="openMissingModal('${dateStr}')">記録を追加申請</button> <button class="small" style="background:#9ca3af" onclick="openSpecialModal('${dateStr}')">特別休暇として申請</button>`;
     }
     return { date: dateStr, html: `<tr><td>${dateStr}</td><td>-</td><td>-</td><td>-</td><td>記録なし</td><td>${actionCell}</td></tr>` };
   });
@@ -372,13 +372,31 @@ async function loadHistory() {
   document.getElementById('overtime-summary').innerHTML = `今月の残業:<span style="color:#dc2626">${overtimeHours}</span>時間<span style="color:#dc2626">${overtimeMins}</span>分`;
 }
 
-async function submitSpecialLeave(dateStr) {
-  if (!confirm(`${dateStr}を特別休暇として申請しますか？(打刻は不要になります)`)) return;
+function openSpecialModal(dateStr) {
+  document.getElementById('special-modal-date').textContent = `${dateStr}を特別休暇として申請します(打刻は不要になります)`;
+  document.getElementById('special-modal-bg').dataset.date = dateStr;
+  document.getElementById('special-reason').value = '';
+  document.getElementById('special-modal-bg').style.display = 'flex';
+}
+
+function closeSpecialModal() {
+  document.getElementById('special-modal-bg').style.display = 'none';
+}
+
+async function submitSpecialLeave() {
+  if (!(await ensureSession())) return;
+
+  const dateStr = document.getElementById('special-modal-bg').dataset.date;
+  const reason = document.getElementById('special-reason').value.trim();
+  if (!reason) { alert('理由を入力してください'); return; }
+
   const { error } = await supabaseClient.from('special_leave_requests').insert({
     employee_id: employee.id,
-    date: dateStr
+    date: dateStr,
+    reason: reason
   });
   if (error) { alert('エラー: ' + error.message); return; }
+  closeSpecialModal();
   loadHistory();
 }
 

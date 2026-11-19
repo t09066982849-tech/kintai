@@ -92,6 +92,17 @@
   </div>
 </div>
 
+<div class="modal-bg" id="special-modal-bg">
+  <div class="modal">
+    <h3>特別休暇の申請</h3>
+    <p id="special-modal-date"></p>
+    <label>理由(必須)</label>
+    <textarea id="special-reason" rows="3" placeholder="例:体調不良のため"></textarea>
+    <button onclick="submitSpecialLeave()">申請する</button>
+    <button style="background:#9ca3af" onclick="closeSpecialModal()">キャンセル</button>
+  </div>
+</div>
+
 <script src="common.js"></script>
 <script src="app.js"></script>
 </body>
