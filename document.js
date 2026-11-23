@@ -46,7 +46,7 @@ async function loadDocument() {
     return;
   }
 
-  const approverIds = [req.manager_approved_by, req.director_approved_by].filter(Boolean);
+  const approverIds = [req.manager_approved_by, req.director_approved_by, req.accounting_manager_approved_by].filter(Boolean);
   const { data: approvers } = await supabaseClient.from('employees').select('id, name').in('id', approverIds);
   const nameById = {};
   (approvers || []).forEach(a => { nameById[a.id] = a.name; });
@@ -97,13 +97,22 @@ function renderBusinessTrip(req, nameById, deptText, managerLabel) {
     <div class="doc-title">出張申請書</div>
     <div class="doc-header">
       <div class="doc-header-to">${req.addressee || '株式会社伊豆倉組'} 様</div>
+      ${req.accounting_manager_approved_by ? `
+      <table class="seal-table" style="width: 252px;">
+        <tr><th>常務</th><th>${managerLabel}</th><th>経理部長</th></tr>
+        <tr>
+          <td>${seal(nameById[req.director_approved_by], true)}</td>
+          <td>${seal(nameById[req.manager_approved_by], true)}</td>
+          <td>${seal(nameById[req.accounting_manager_approved_by], true)}</td>
+        </tr>
+      </table>` : `
       <table class="seal-table">
         <tr><th>常務</th><th>${managerLabel}</th></tr>
         <tr>
           <td>${seal(nameById[req.director_approved_by], true)}</td>
           <td>${seal(nameById[req.manager_approved_by], true)}</td>
         </tr>
-      </table>
+      </table>`}
     </div>
     <table class="multi-col">
       <tr><th>申請日</th><td colspan="5">${jstDateOnly(req.created_at)}</td></tr>

@@ -1,14 +1,21 @@
 let employee = null;
 
 const typeLabel = { paid_leave: '有給休暇', business_trip: '出張' };
-const stageLabel = { manager: '部長承認待ち', director: '常務承認待ち', done: '承認完了' };
+const stageLabel = { manager: '部長承認待ち', director: '常務承認待ち', accounting_manager: '経理部長承認待ち', done: '承認完了' };
 
 const APPROVER_ROLES = ['director', 'manager_civil', 'manager_accounting'];
 
 function requiredRoleForStage(stage, department) {
   if (stage === 'manager') return department === 'accounting' ? 'manager_accounting' : 'manager_civil';
   if (stage === 'director') return 'director';
+  if (stage === 'accounting_manager') return 'manager_accounting';
   return null;
+}
+
+// 出張は、常務の承認の後に経理部長にも回す(経理部の人の出張は、経理部長が最初の部長承認をするので回さない。常務の出張は回す)
+function needsAccountingManagerStage(type, applicant) {
+  if (type !== 'business_trip') return false;
+  return applicant.role === 'director' || applicant.department !== 'accounting';
 }
 
 async function viewAttachment(path) {
@@ -271,7 +278,7 @@ async function autoSkipIfSelf(request) {
   if (employee.role === 'director') {
     // 部長は実際には関与していないので manager_approved_by には触れず、常務承認だけ直接記録する
     current = { ...current, current_stage: 'director' };
-    current = await advanceStage(current, employee.id, true);
+    current = await advanceStage(current, employee.id, true, employee);
     return;
   }
 
@@ -280,7 +287,7 @@ async function autoSkipIfSelf(request) {
     guard++;
     const requiredRole = requiredRoleForStage(current.current_stage, employee.department);
     if (requiredRole !== employee.role) break;
-    current = await advanceStage(current, employee.id, true);
+    current = await advanceStage(current, employee.id, true, employee);
   }
 }
 
@@ -336,7 +343,8 @@ function isApproverForStage(item) {
   return employee.role === requiredRole;
 }
 
-async function advanceStage(request, approverId, isSkip) {
+// applicant: 申請者の { department, role }(出張で経理部長にも回すかの判定に使う)
+async function advanceStage(request, approverId, isSkip, applicant) {
   const updates = {};
   const now = new Date().toISOString();
 
@@ -347,6 +355,15 @@ async function advanceStage(request, approverId, isSkip) {
   } else if (request.current_stage === 'director') {
     updates.director_approved_by = approverId;
     updates.director_approved_at = now;
+    if (needsAccountingManagerStage(request.type, applicant)) {
+      updates.current_stage = 'accounting_manager';
+    } else {
+      updates.current_stage = 'done';
+      updates.status = 'approved';
+    }
+  } else if (request.current_stage === 'accounting_manager') {
+    updates.accounting_manager_approved_by = approverId;
+    updates.accounting_manager_approved_at = now;
     updates.current_stage = 'done';
     updates.status = 'approved';
   }
@@ -426,14 +443,14 @@ async function approveRequest(id) {
     return;
   }
 
-  let current = await advanceStage(request, employee.id, false);
+  let current = await advanceStage(request, employee.id, false, request.employees);
 
   let guard = 0;
   while (current.status === 'pending' && guard < 5) {
     guard++;
     const nextRequiredRole = requiredRoleForStage(current.current_stage, request.employees.department);
     if (nextRequiredRole !== request.employees.role) break;
-    current = await advanceStage(current, request.employee_id, true);
+    current = await advanceStage(current, request.employee_id, true, request.employees);
   }
 
   await notifyApprovalStage(id);

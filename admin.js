@@ -1021,7 +1021,7 @@ const hotelArrangementLabel = {
   company: '会社手配(手配依頼をおこなってください)',
   client: '先方手配'
 };
-const adminStageLabel = { manager: '部長承認待ち', director: '常務承認待ち' };
+const adminStageLabel = { manager: '部長承認待ち', director: '常務承認待ち', accounting_manager: '経理部長承認待ち' };
 
 let pendingLeaveItems = [];
 
