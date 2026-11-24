@@ -153,6 +153,31 @@ function computeDayMetrics(dateStr, clockIn, clockOut, workStart, workEnd, break
   return { adjustedIn, adjustedOut, workMinutes, overtimeMinutes, breakMinutes: appliedBreakMinutes, scheduledStart, scheduledEnd, earlyCap, lateCap };
 }
 
+// 打刻時刻(Date)の、JSTでの0時からの経過分
+function jstMinutesOfDay(date) {
+  const j = new Date(new Date(date).getTime() + 9 * 60 * 60 * 1000);
+  return j.getUTCHours() * 60 + j.getUTCMinutes();
+}
+
+// その日をカバーしている承認済みの有給・出張・特別休暇を探し、表示用の情報 { label, half } を返す(無ければnull)。
+// leaves: [{ type: 'paid_leave' | 'business_trip' | 'special', start, end, days }]
+// 半休(有給で、期間が1日・日数が0.5)は、出勤が12:00より前なら午後休('pm')、12:00以降なら午前休('am')。
+// 打刻が無い(clockInが空)ときは午前か午後か分からないので、label='半休'(half=null)。
+function leaveInfoForDate(dateStr, leaves, clockIn) {
+  const l = (leaves || []).find(x => x.start <= dateStr && x.end >= dateStr);
+  if (!l) return null;
+  if (l.type === 'paid_leave' && Number(l.days) === 0.5 && l.start === l.end) {
+    if (!clockIn) return { label: '半休', half: null };
+    return jstMinutesOfDay(clockIn) >= 12 * 60 ? { label: '午前休', half: 'am' } : { label: '午後休', half: 'pm' };
+  }
+  const labels = { paid_leave: '有給休暇', business_trip: '出張', special: '特別休暇' };
+  return { label: labels[l.type] || '休暇', half: null };
+}
+
+function leaveLabelHtml(label) {
+  return `<div style="color:#2563eb">${label}</div>`;
+}
+
 function formatMinutesJa(mins) {
   const h = Math.floor(mins / 60);
   const m = mins % 60;

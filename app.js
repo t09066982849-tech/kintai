@@ -178,13 +178,14 @@ function formatDateJa(dateStr) {
 }
 
 // 表示中の月の打刻漏れを、天気予報の下に日付ごとに一覧表示する
-function renderMissingPunchAlert(missingDates, records, todayStr) {
+function renderMissingPunchAlert(missingDates, records, todayStr, leaves) {
   const el = document.getElementById('missing-punch-alert');
   if (!el) return;
 
   const issues = missingDates.map(dateStr => ({ date: dateStr, text: `${formatDateJa(dateStr)}の出勤打刻がされていません` }));
   records.forEach(r => {
-    if (r.clock_in && !r.clock_out && r.date < todayStr) {
+    // 承認済みの有給・出張・特別休暇の日(半休を含む)は、退勤の押し忘れでもアラートに出さない
+    if (r.clock_in && !r.clock_out && r.date < todayStr && !leaveInfoForDate(r.date, leaves, null)) {
       issues.push({ date: r.date, text: `${formatDateJa(r.date)}の退勤打刻がされていません` });
     }
   });
@@ -219,7 +220,7 @@ async function loadHistory() {
 
   const { data: schedules } = await supabaseClient
     .from('schedules')
-    .select('date, end_date, type')
+    .select('date, end_date, type, leave_request_id')
     .eq('employee_id', employee.id)
     .lte('date', endDate)
     .or(`end_date.gte.${startDate},end_date.is.null`)
@@ -264,6 +265,18 @@ async function loadHistory() {
   const specialLeaveStatusByDate = {};
   (specialLeaveRequests || []).forEach(s => { specialLeaveStatusByDate[s.date] = s.status; });
 
+  // 承認済みの有給・出張・特別休暇の一覧(半休の判定に、申請の日数を使う)
+  const leaveRequestIds = (schedules || []).map(s => s.leave_request_id).filter(Boolean);
+  const leaveDaysById = {};
+  if (leaveRequestIds.length > 0) {
+    const { data: lrs } = await supabaseClient.from('leave_requests').select('id, days').in('id', leaveRequestIds);
+    (lrs || []).forEach(l => { leaveDaysById[l.id] = l.days; });
+  }
+  const leaves = (schedules || []).map(s => ({ type: s.type, start: s.date, end: s.end_date || s.date, days: leaveDaysById[s.leave_request_id] }));
+  Object.entries(specialLeaveStatusByDate).forEach(([date, st]) => {
+    if (st === 'approved') leaves.push({ type: 'special', start: date, end: date });
+  });
+
   const existingDates = new Set(records.map(r => r.date));
   const todayStr = getJSTDateStr();
   const cutoff = endDate < todayStr ? endDate : todayStr;
@@ -282,23 +295,16 @@ async function loadHistory() {
         if (inCompanyHoliday) continue;
       }
       if (existingDates.has(dateStr)) continue;
-      const leaveSchedule = (schedules || []).find(s => {
-        const sEnd = s.end_date || s.date;
-        return s.date <= dateStr && sEnd >= dateStr;
-      });
-      if (leaveSchedule) {
-        leaveDays.push({ date: dateStr, label: leaveSchedule.type === 'paid_leave' ? '有給休暇' : '出張' });
-        continue;
-      }
-      if (specialLeaveStatusByDate[dateStr] === 'approved') {
-        leaveDays.push({ date: dateStr, label: '特別休暇' });
+      const leaveInfo = leaveInfoForDate(dateStr, leaves, null);
+      if (leaveInfo) {
+        leaveDays.push({ date: dateStr, label: leaveInfo.label });
         continue;
       }
       missingDates.push(dateStr);
     }
   }
 
-  renderMissingPunchAlert(missingDates, records, todayStr);
+  renderMissingPunchAlert(missingDates, records, todayStr, leaves);
 
   const tbody = document.getElementById('history-body');
   if (records.length === 0 && missingDates.length === 0 && leaveDays.length === 0) {
@@ -315,9 +321,17 @@ async function loadHistory() {
     const workBreak = r.sites ? r.sites.break_minutes : null;
     const metrics = computeDayMetrics(r.date, r.clock_in, r.clock_out, workStart, workEnd, workBreak);
 
-    const inTime = timeCellHtml(r.clock_in ? new Date(r.clock_in) : null, metrics.adjustedIn);
-    const outTime = timeCellHtml(r.clock_out ? new Date(r.clock_out) : null, metrics.adjustedOut);
-    const workTime = metrics.workMinutes != null ? formatMinutesJa(metrics.workMinutes) : '-';
+    let inTime = timeCellHtml(r.clock_in ? new Date(r.clock_in) : null, metrics.adjustedIn);
+    let outTime = timeCellHtml(r.clock_out ? new Date(r.clock_out) : null, metrics.adjustedOut);
+    let workTime = metrics.workMinutes != null ? formatMinutesJa(metrics.workMinutes) : '-';
+
+    // 承認済みの有給・出張・特別休暇の日:半休は午前休を出勤欄、午後休を退勤欄に、それ以外は勤務時間の下に青字で表示
+    const leaveInfo = leaveInfoForDate(r.date, leaves, r.clock_in);
+    if (leaveInfo) {
+      if (leaveInfo.half === 'am') inTime += leaveLabelHtml(leaveInfo.label);
+      else if (leaveInfo.half === 'pm') outTime = (r.clock_out ? outTime : '') + leaveLabelHtml(leaveInfo.label);
+      else workTime += leaveLabelHtml(leaveInfo.label);
+    }
 
     if (metrics.workMinutes != null) totalOvertimeMinutes += metrics.overtimeMinutes;
 

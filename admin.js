@@ -141,29 +141,39 @@ function dateWithWeekday(dateStr) {
   return `${dateStr}<span style="${color}">(${['日', '月', '火', '水', '木', '金', '土'][wd]})</span>`;
 }
 
-// 打刻は無い日のうち、承認済みの有給・出張・特別休暇の日と、出勤すべき日の打刻なし(土日・休日・今日より後は除く)を返す
+// 打刻は無い日のうち、承認済みの有給・出張・特別休暇の日と、出勤すべき日の打刻なし(土日・休日・今日より後は除く)を返す。
+// あわせて、その月の承認済みの有給・出張・特別休暇の一覧(leaves)も返す(打刻のある日の半休表示などに使う)。
 async function computeLeaveDays(employeeId, startDate, endDate, recordDates) {
   const today = getJSTDateStr();
   const cutoff = endDate < today ? endDate : today;
-  if (startDate > cutoff) return [];
 
   const results = await Promise.all([
     supabaseClient.from('employees').select('department, hire_date').eq('id', employeeId).single(),
-    supabaseClient.from('schedules').select('date, end_date, type').eq('employee_id', employeeId).in('type', ['paid_leave', 'business_trip']).lte('date', endDate).or(`end_date.gte.${startDate},end_date.is.null`),
+    supabaseClient.from('schedules').select('date, end_date, type, leave_request_id').eq('employee_id', employeeId).in('type', ['paid_leave', 'business_trip']).lte('date', endDate).or(`end_date.gte.${startDate},end_date.is.null`),
     supabaseClient.from('special_leave_requests').select('date').eq('employee_id', employeeId).eq('status', 'approved').gte('date', startDate).lte('date', endDate),
     supabaseClient.from('holidays').select('date').gte('date', startDate).lte('date', endDate),
     supabaseClient.from('company_holidays').select('start_date, end_date').lte('start_date', endDate).gte('end_date', startDate)
   ]);
   for (const res of results) {
-    if (res.error) { console.error(res.error); return []; }
+    if (res.error) { console.error(res.error); return { leaveDays: [], leaves: [] }; }
   }
   const [empRes, schRes, spRes, holRes, chRes] = results;
 
   const isAccounting = empRes.data.department === 'accounting';
   const holidaySet = new Set(holRes.data.map(h => h.date));
-  const specialDates = new Set(spRes.data.map(s => s.date));
+
+  // 半休の判定に使う、申請の日数
+  const leaveRequestIds = schRes.data.map(s => s.leave_request_id).filter(Boolean);
+  const leaveDaysById = {};
+  if (leaveRequestIds.length > 0) {
+    const { data: lrs } = await supabaseClient.from('leave_requests').select('id, days').in('id', leaveRequestIds);
+    (lrs || []).forEach(l => { leaveDaysById[l.id] = l.days; });
+  }
+  const leaves = schRes.data.map(s => ({ type: s.type, start: s.date, end: s.end_date || s.date, days: leaveDaysById[s.leave_request_id] }));
+  spRes.data.forEach(s => leaves.push({ type: 'special', start: s.date, end: s.date }));
 
   const leaveDays = [];
+  if (startDate > cutoff) return { leaveDays, leaves };
   for (let d = new Date(startDate + 'T00:00:00Z'); ; d.setUTCDate(d.getUTCDate() + 1)) {
     const dateStr = d.toISOString().slice(0, 10);
     if (dateStr > cutoff) break;
@@ -176,17 +186,15 @@ async function computeLeaveDays(employeeId, startDate, endDate, recordDates) {
     if (isHoliday) continue;
     if (recordDates.has(dateStr)) continue;
 
-    const schedule = schRes.data.find(s => s.date <= dateStr && (s.end_date || s.date) >= dateStr);
-    if (schedule) {
-      leaveDays.push({ date: dateStr, label: schedule.type === 'paid_leave' ? '有給休暇' : '出張' });
-    } else if (specialDates.has(dateStr)) {
-      leaveDays.push({ date: dateStr, label: '特別休暇' });
+    const leaveInfo = leaveInfoForDate(dateStr, leaves, null);
+    if (leaveInfo) {
+      leaveDays.push({ date: dateStr, label: leaveInfo.label });
     } else if (dateStr >= DETAIL_MISSING_START_DATE && !(empRes.data.hire_date && dateStr < empRes.data.hire_date)) {
       // 出勤すべき日なのに打刻も休暇もない日(今日はまだ打刻前の可能性があるので別表示)
       leaveDays.push({ date: dateStr, label: dateStr === today ? '本日未打刻' : '打刻なし', missing: true, isToday: dateStr === today });
     }
   }
-  return leaveDays;
+  return { leaveDays, leaves };
 }
 
 // 「当月」+ 過去11か月分(月名)のボタンを並べ、表示中の月だけ色を付ける(1年分)
@@ -229,7 +237,7 @@ async function showEmployeeDetail(employeeId, employeeName, monthOffset = 0) {
   if (error) {
     tbody.innerHTML = `<tr><td colspan="8">エラー: ${error.message}</td></tr>`;
   } else {
-    const leaveDays = await computeLeaveDays(employeeId, startDate, endDate, new Set((records || []).map(r => r.date)));
+    const { leaveDays, leaves } = await computeLeaveDays(employeeId, startDate, endDate, new Set((records || []).map(r => r.date)));
     if (records.length === 0 && leaveDays.length === 0) {
       tbody.innerHTML = '<tr><td colspan="8">この月の記録がありません</td></tr>';
     } else {
@@ -238,14 +246,23 @@ async function showEmployeeDetail(employeeId, employeeName, monthOffset = 0) {
         const workEnd = r.sites ? r.sites.work_end : null;
         const workBreak = r.sites ? r.sites.break_minutes : null;
         const metrics = computeDayMetrics(r.date, r.clock_in, r.clock_out, workStart, workEnd, workBreak);
-        const workTime = metrics.workMinutes != null ? formatMinutesJa(metrics.workMinutes) : '-';
+        let workTime = metrics.workMinutes != null ? formatMinutesJa(metrics.workMinutes) : '-';
         const overtimeTime = metrics.workMinutes != null ? formatMinutesJa(metrics.overtimeMinutes) : '-';
+        let inCell = timeCellHtml(r.clock_in ? new Date(r.clock_in) : null, metrics.adjustedIn);
+        let outCell = timeCellHtml(r.clock_out ? new Date(r.clock_out) : null, metrics.adjustedOut);
+        // 承認済みの有給・出張・特別休暇の日:半休は午前休を出勤欄、午後休を退勤欄に、それ以外は勤務時間の下に青字で表示
+        const leaveInfo = leaveInfoForDate(r.date, leaves, r.clock_in);
+        if (leaveInfo) {
+          if (leaveInfo.half === 'am') inCell += leaveLabelHtml(leaveInfo.label);
+          else if (leaveInfo.half === 'pm') outCell = (r.clock_out ? outCell : '') + leaveLabelHtml(leaveInfo.label);
+          else workTime += leaveLabelHtml(leaveInfo.label);
+        }
         return { date: r.date, html: `
         <tr>
           <td>${dateWithWeekday(r.date)}</td>
           <td>${r.sites ? r.sites.name : '-'}</td>
-          <td>${timeCellHtml(r.clock_in ? new Date(r.clock_in) : null, metrics.adjustedIn)}</td>
-          <td>${timeCellHtml(r.clock_out ? new Date(r.clock_out) : null, metrics.adjustedOut)}</td>
+          <td>${inCell}</td>
+          <td>${outCell}</td>
           <td>${workTime}</td>
           <td>${overtimeTime}</td>
           <td>${r.clock_in_address || '-'}</td>
@@ -726,10 +743,26 @@ async function exportExcel() {
 
   const { data: leaveRequests } = await supabaseClient
     .from('leave_requests')
-    .select('employee_id, type, days')
+    .select('id, employee_id, type, days, start_date, end_date')
     .eq('status', 'approved')
     .lte('start_date', endDate)
     .gte('end_date', startDate);
+
+  const { data: specialLeaves } = await supabaseClient
+    .from('special_leave_requests')
+    .select('employee_id, date')
+    .eq('status', 'approved')
+    .gte('date', startDate)
+    .lte('date', endDate);
+
+  // 従業員ごとの、承認済みの有給・出張・特別休暇の一覧(半休・休暇日の表示に使う)
+  const leavesByEmp = {};
+  (leaveRequests || []).forEach(lr => {
+    (leavesByEmp[lr.employee_id] = leavesByEmp[lr.employee_id] || []).push({ type: lr.type, start: lr.start_date, end: lr.end_date, days: lr.days });
+  });
+  (specialLeaves || []).forEach(sl => {
+    (leavesByEmp[sl.employee_id] = leavesByEmp[sl.employee_id] || []).push({ type: 'special', start: sl.date, end: sl.date });
+  });
 
   // 打刻漏れ判定と同じ基準:経理部は土日+全国の祝日、それ以外(土木部)は土日+会社休業期間のみ
   function isHolidayFor(dateStr, department) {
@@ -782,15 +815,44 @@ async function exportExcel() {
       group.breakMinutesTotal += metrics.breakMinutes;
     }
 
+    // 半休は、午前休を出勤時刻の欄、午後休を退勤時刻の欄に表示する。有給・出張・特別休暇の日は備考の欄に表示する
+    let inCell = inTime;
+    let outCell = outTime;
+    let remark = '';
+    const leaveInfo = leaveInfoForDate(r.date, leavesByEmp[empId] || [], r.clock_in);
+    if (leaveInfo) {
+      if (leaveInfo.half === 'am') inCell = `${inTime}(${leaveInfo.label})`;
+      else if (leaveInfo.half === 'pm') outCell = r.clock_out ? `${outTime}(${leaveInfo.label})` : leaveInfo.label;
+      else remark = leaveInfo.label;
+    }
+
     group.rows.push({
       '日付': r.date,
       '現場': r.sites ? r.sites.name : '',
-      '出勤時刻': inTime,
-      '退勤時刻': outTime,
+      '出勤時刻': inCell,
+      '退勤時刻': outCell,
       '勤務時間': workTime,
       '残業時間': overtimeTime,
-      '休日出勤': holidayWork
+      '休日出勤': holidayWork,
+      '備考': remark
     });
+  });
+
+  // 打刻の無い日のうち、承認済みの有給・出張・特別休暇の日(土日・休日は除く)も、備考つきの行として入れる
+  const recordKeys = new Set(records.map(r => `${r.employees ? r.employees.id : 'unknown'}_${r.date}`));
+  Object.entries(grouped).forEach(([empId, group]) => {
+    const empLeaves = leavesByEmp[empId] || [];
+    if (empLeaves.length > 0) {
+      for (let d = new Date(startDate + 'T00:00:00Z'); d.toISOString().slice(0, 10) <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
+        const dateStr = d.toISOString().slice(0, 10);
+        if (recordKeys.has(`${empId}_${dateStr}`)) continue;
+        if (isHolidayFor(dateStr, group.department)) continue;
+        const info = leaveInfoForDate(dateStr, empLeaves, null);
+        if (!info) continue;
+        group.rows.push({ '日付': dateStr, '現場': '', '出勤時刻': '', '退勤時刻': '', '勤務時間': '', '残業時間': '', '休日出勤': '', '備考': info.label });
+      }
+    }
+    group.rows.sort((a, b) => a['日付'] < b['日付'] ? -1 : a['日付'] > b['日付'] ? 1 : 0);
   });
 
   const leaveDaysByEmployee = {};
@@ -824,7 +886,7 @@ async function exportExcel() {
   if (includeDaily) {
     Object.values(grouped).forEach(group => {
       const ws = XLSX.utils.json_to_sheet(group.rows);
-      ws['!cols'] = [{wch:12},{wch:14},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10}];
+      ws['!cols'] = [{wch:12},{wch:14},{wch:16},{wch:16},{wch:10},{wch:10},{wch:10},{wch:12}];
       const sheetName = safeSheetName(group.name, usedNames);
       XLSX.utils.book_append_sheet(wb, ws, sheetName);
     });
