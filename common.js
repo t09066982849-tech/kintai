@@ -125,7 +125,8 @@ function computeBreakMinutes(dateStr, adjustedIn, adjustedOut, breakMinutes) {
   return total;
 }
 
-function computeDayMetrics(dateStr, clockIn, clockOut, workStart, workEnd, breakMinutes) {
+// halfDay: 'pm'(午後休)のときは、退勤を押していなくても、午前の終わり(12:00)までを勤務時間として計算する。
+function computeDayMetrics(dateStr, clockIn, clockOut, workStart, workEnd, breakMinutes, halfDay) {
   const startStr = (workStart || '07:00').slice(0, 5);
   const endStr = (workEnd || '17:00').slice(0, 5);
   const scheduledStart = new Date(dateStr + 'T' + startStr + ':00+09:00');
@@ -138,6 +139,7 @@ function computeDayMetrics(dateStr, clockIn, clockOut, workStart, workEnd, break
 
   if (adjustedIn && adjustedIn < earlyCap) adjustedIn = earlyCap;
   if (adjustedOut && adjustedOut > lateCap) adjustedOut = lateCap;
+  if (halfDay === 'pm' && adjustedIn && !adjustedOut) adjustedOut = new Date(dateStr + 'T12:00:00+09:00');
 
   let workMinutes = null;
   let overtimeMinutes = 0;
@@ -161,14 +163,15 @@ function jstMinutesOfDay(date) {
 
 // その日をカバーしている承認済みの有給・出張・特別休暇を探し、表示用の情報 { label, half } を返す(無ければnull)。
 // leaves: [{ type: 'paid_leave' | 'business_trip' | 'special', start, end, days }]
-// 半休(有給で、期間が1日・日数が0.5)は、出勤が12:00より前なら午後休('pm')、12:00以降なら午前休('am')。
-// 打刻が無い(clockInが空)ときは午前か午後か分からないので、label='半休'(half=null)。
+// 半休:有給の日に出勤の打刻がある日は、出勤が12:00より前なら午後休('pm')、12:00以降なら午前休('am')。
+//       (有給を取った日に打刻するのは半休だけ、という前提。複数日の申請で0.5日が含まれる場合も、打刻のある日が半休になる)
+//       打刻が無く、期間が1日・日数が0.5の有給は、午前か午後か分からないので、label='半休'(half=null)。
 function leaveInfoForDate(dateStr, leaves, clockIn) {
   const l = (leaves || []).find(x => x.start <= dateStr && x.end >= dateStr);
   if (!l) return null;
-  if (l.type === 'paid_leave' && Number(l.days) === 0.5 && l.start === l.end) {
-    if (!clockIn) return { label: '半休', half: null };
-    return jstMinutesOfDay(clockIn) >= 12 * 60 ? { label: '午前休', half: 'am' } : { label: '午後休', half: 'pm' };
+  if (l.type === 'paid_leave') {
+    if (clockIn) return jstMinutesOfDay(clockIn) >= 12 * 60 ? { label: '午前休', half: 'am' } : { label: '午後休', half: 'pm' };
+    if (Number(l.days) === 0.5 && l.start === l.end) return { label: '半休', half: null };
   }
   const labels = { paid_leave: '有給休暇', business_trip: '出張', special: '特別休暇' };
   return { label: labels[l.type] || '休暇', half: null };

@@ -245,13 +245,13 @@ async function showEmployeeDetail(employeeId, employeeName, monthOffset = 0) {
         const workStart = r.sites ? r.sites.work_start : null;
         const workEnd = r.sites ? r.sites.work_end : null;
         const workBreak = r.sites ? r.sites.break_minutes : null;
-        const metrics = computeDayMetrics(r.date, r.clock_in, r.clock_out, workStart, workEnd, workBreak);
+        const leaveInfo = leaveInfoForDate(r.date, leaves, r.clock_in);
+        const metrics = computeDayMetrics(r.date, r.clock_in, r.clock_out, workStart, workEnd, workBreak, leaveInfo ? leaveInfo.half : null);
         let workTime = metrics.workMinutes != null ? formatMinutesJa(metrics.workMinutes) : '-';
         const overtimeTime = metrics.workMinutes != null ? formatMinutesJa(metrics.overtimeMinutes) : '-';
         let inCell = timeCellHtml(r.clock_in ? new Date(r.clock_in) : null, metrics.adjustedIn);
         let outCell = timeCellHtml(r.clock_out ? new Date(r.clock_out) : null, metrics.adjustedOut);
         // 承認済みの有給・出張・特別休暇の日:半休は午前休を出勤欄、午後休を退勤欄に、それ以外は勤務時間の下に青字で表示
-        const leaveInfo = leaveInfoForDate(r.date, leaves, r.clock_in);
         if (leaveInfo) {
           if (leaveInfo.half === 'am') inCell += leaveLabelHtml(leaveInfo.label);
           else if (leaveInfo.half === 'pm') outCell = (r.clock_out ? outCell : '') + leaveLabelHtml(leaveInfo.label);
@@ -799,7 +799,8 @@ async function exportExcel() {
     const workStart = r.sites ? r.sites.work_start : null;
     const workEnd = r.sites ? r.sites.work_end : null;
     const workBreak = r.sites ? r.sites.break_minutes : null;
-    const metrics = computeDayMetrics(r.date, r.clock_in, r.clock_out, workStart, workEnd, workBreak);
+    const leaveInfo = leaveInfoForDate(r.date, leavesByEmp[empId] || [], r.clock_in);
+    const metrics = computeDayMetrics(r.date, r.clock_in, r.clock_out, workStart, workEnd, workBreak, leaveInfo ? leaveInfo.half : null);
 
     const inTime = formatTimeJa(metrics.adjustedIn);
     const outTime = formatTimeJa(metrics.adjustedOut);
@@ -819,7 +820,6 @@ async function exportExcel() {
     let inCell = inTime;
     let outCell = outTime;
     let remark = '';
-    const leaveInfo = leaveInfoForDate(r.date, leavesByEmp[empId] || [], r.clock_in);
     if (leaveInfo) {
       if (leaveInfo.half === 'am') inCell = `${inTime}(${leaveInfo.label})`;
       else if (leaveInfo.half === 'pm') outCell = r.clock_out ? `${outTime}(${leaveInfo.label})` : leaveInfo.label;
