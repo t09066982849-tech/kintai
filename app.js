@@ -439,6 +439,11 @@ async function submitMissingRequest() {
   const clockOut = document.getElementById('missing-clock-out').value;
 
   if (!clockIn) { alert('出勤時刻を入力してください'); return; }
+  // まだ来ていない時刻(未来)では申請できない
+  if (isFutureJst(dateStr, clockIn) || (clockOut && isFutureJst(dateStr, clockOut))) {
+    alert('まだその時刻になっていません。現在より後の時刻は申請できません。');
+    return;
+  }
 
   const { error } = await supabaseClient.from('missing_record_requests').insert({
     employee_id: employee.id,
@@ -496,6 +501,11 @@ async function submitCorrection() {
   }
   if (!isOngoing && !outVal) {
     alert('出勤時刻・退勤時刻の両方を入力してください');
+    return;
+  }
+  // まだ来ていない時刻(未来)では申請できない
+  if (isFutureJst(modalRecord.date, inVal) || (outVal && isFutureJst(modalRecord.date, outVal))) {
+    alert('まだその時刻になっていません。現在より後の時刻は申請できません。');
     return;
   }
 

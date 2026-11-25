@@ -155,6 +155,11 @@ function computeDayMetrics(dateStr, clockIn, clockOut, workStart, workEnd, break
   return { adjustedIn, adjustedOut, workMinutes, overtimeMinutes, breakMinutes: appliedBreakMinutes, scheduledStart, scheduledEnd, earlyCap, lateCap };
 }
 
+// 指定した日付・時刻(JST, 'HH:MM')が、まだ来ていない(未来)か
+function isFutureJst(dateStr, hhmm) {
+  return new Date(dateStr + 'T' + String(hhmm).slice(0, 5) + ':00+09:00') > new Date();
+}
+
 // 打刻時刻(Date)の、JSTでの0時からの経過分
 function jstMinutesOfDay(date) {
   const j = new Date(new Date(date).getTime() + 9 * 60 * 60 * 1000);

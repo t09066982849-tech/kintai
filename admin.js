@@ -1242,6 +1242,13 @@ async function approveMissingRequest(id) {
   const clockInIso = `${req.date}T${req.requested_clock_in}+09:00`;
   const clockOutIso = req.requested_clock_out ? `${req.date}T${req.requested_clock_out}+09:00` : null;
 
+  // まだ来ていない時刻(未来)は承認できない
+  const nowMs = Date.now();
+  if (new Date(clockInIso).getTime() > nowMs || (clockOutIso && new Date(clockOutIso).getTime() > nowMs)) {
+    alert('希望の時刻が、まだ来ていません(未来の時刻です)。承認できません。その時刻になってから、承認してください。');
+    return;
+  }
+
   // 申請後にその日の打刻が入っていると、1人1日1行の制約で追加できないため、既存の記録を確認する
   const { data: existing, error: existingError } = await supabaseClient
     .from('time_records')
