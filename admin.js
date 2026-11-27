@@ -846,6 +846,16 @@ async function exportExcel() {
       else remark = creditMinutes ? leaveLabelWithCredit(leaveInfo) : leaveInfo.label;
     }
 
+    // 補正無しの時間(補正があった日だけ入れる)。勤務時間は、補正の上限(早出30分・残業1時間)をかけずに計算する
+    const rawMetrics = computeDayMetrics(r.date, r.clock_in, r.clock_out, '00:00', '23:59', workBreak, leaveInfo ? leaveInfo.half : null);
+    const rawIn = r.clock_in ? formatTimeJa(new Date(r.clock_in)) : '';
+    const rawOut = r.clock_out ? formatTimeJa(new Date(r.clock_out)) : '';
+    const rawInfo = {
+      in: rawIn && rawIn !== inTime ? rawIn : '',
+      out: rawOut && rawOut !== outTime ? rawOut : '',
+      work: rawMetrics.workMinutes != null && rawMetrics.workMinutes !== metrics.workMinutes ? formatMinutesJa(rawMetrics.workMinutes) : ''
+    };
+
     group.rows.push({
       '日付': r.date,
       '現場': r.sites ? r.sites.name : '',
@@ -854,7 +864,8 @@ async function exportExcel() {
       '勤務時間': workTime,
       '残業時間': overtimeTime,
       '休日出勤': holidayWork,
-      '備考': remark
+      '備考': remark,
+      _raw: rawInfo
     });
   });
 
@@ -913,10 +924,26 @@ async function exportExcel() {
   XLSX.utils.book_append_sheet(wb, summaryWs, '全員まとめ');
 
   const includeDaily = document.getElementById('export-include-daily').checked;
+  const includeRaw = document.getElementById('export-include-raw').checked;
   if (includeDaily) {
     Object.values(grouped).forEach(group => {
-      const ws = XLSX.utils.json_to_sheet(group.rows);
-      ws['!cols'] = [{wch:12},{wch:14},{wch:16},{wch:16},{wch:10},{wch:10},{wch:10},{wch:12}];
+      // 補正無し時間を含める場合は、出勤時刻・退勤時刻・勤務時間の右隣に、補正無しの列を入れる
+      const sheetRows = group.rows.map(row => {
+        const { _raw, ...base } = row;
+        if (!includeRaw) return base;
+        const raw = _raw || {};
+        return {
+          '日付': base['日付'], '現場': base['現場'],
+          '出勤時刻': base['出勤時刻'], '補正無し出勤時間': raw.in || '',
+          '退勤時刻': base['退勤時刻'], '補正無し退勤時間': raw.out || '',
+          '勤務時間': base['勤務時間'], '補正無し勤務時間': raw.work || '',
+          '残業時間': base['残業時間'], '休日出勤': base['休日出勤'], '備考': base['備考']
+        };
+      });
+      const ws = XLSX.utils.json_to_sheet(sheetRows);
+      ws['!cols'] = includeRaw
+        ? [{wch:12},{wch:14},{wch:16},{wch:16},{wch:16},{wch:16},{wch:10},{wch:16},{wch:10},{wch:10},{wch:12}]
+        : [{wch:12},{wch:14},{wch:16},{wch:16},{wch:10},{wch:10},{wch:10},{wch:12}];
       const sheetName = safeSheetName(group.name, usedNames);
       XLSX.utils.book_append_sheet(wb, ws, sheetName);
     });

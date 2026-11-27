@@ -63,6 +63,10 @@
       <input type="checkbox" id="export-include-daily" checked style="width:auto; margin:0;">
       個人別シートを含める
     </label>
+    <label style="display:flex; align-items:center; gap:8px; width:auto;">
+      <input type="checkbox" id="export-include-raw" style="width:auto; margin:0;">
+      補正無し時間も含める(個人別シート。補正があった日だけ入ります)
+    </label>
     <button onclick="exportExcel()">この月のデータをExcelでダウンロード</button>
   </details>
 
