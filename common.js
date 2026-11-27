@@ -179,7 +179,21 @@ function leaveInfoForDate(dateStr, leaves, clockIn) {
     if (Number(l.days) === 0.5 && l.start === l.end) return { label: '半休', half: null };
   }
   const labels = { paid_leave: '有給休暇', business_trip: '出張', special: '特別休暇' };
-  return { label: labels[l.type] || '休暇', half: null };
+  const info = { label: labels[l.type] || '休暇', half: null };
+  // 出張は、打刻が無い(退勤が無く勤務時間を計算できない場合も含む)日を、所定8時間(期間1日・日数0.5の半日出張は4時間)として扱う
+  if (l.type === 'business_trip') info.creditMinutes = (Number(l.days) === 0.5 && l.start === l.end) ? 240 : 480;
+  return info;
+}
+
+// 出張の補正時間つきのラベル(例: 出張(8時間))。補正の対象でなければ、そのままのラベル
+function leaveLabelWithCredit(info) {
+  return info.creditMinutes ? `${info.label}(${info.creditMinutes / 60}時間)` : info.label;
+}
+
+// 土日か(日付 'YYYY-MM-DD')
+function isWeekendDate(dateStr) {
+  const wd = new Date(dateStr + 'T00:00:00Z').getUTCDay();
+  return wd === 0 || wd === 6;
 }
 
 function leaveLabelHtml(label) {

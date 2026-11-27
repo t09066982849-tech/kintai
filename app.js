@@ -297,7 +297,7 @@ async function loadHistory() {
       if (existingDates.has(dateStr)) continue;
       const leaveInfo = leaveInfoForDate(dateStr, leaves, null);
       if (leaveInfo) {
-        leaveDays.push({ date: dateStr, label: leaveInfo.label });
+        leaveDays.push({ date: dateStr, label: leaveLabelWithCredit(leaveInfo) });
         continue;
       }
       missingDates.push(dateStr);
@@ -330,7 +330,15 @@ async function loadHistory() {
     if (leaveInfo) {
       if (leaveInfo.half === 'am') inTime += leaveLabelHtml(leaveInfo.label);
       else if (leaveInfo.half === 'pm') outTime = (r.clock_out ? outTime : '') + leaveLabelHtml(leaveInfo.label);
-      else workTime += leaveLabelHtml(leaveInfo.label);
+      else {
+        // 出張で、退勤が無く勤務時間を計算できない日は、所定の時間(8時間)に補正する
+        let label = leaveInfo.label;
+        if (leaveInfo.creditMinutes && metrics.workMinutes == null && !isWeekendDate(r.date)) {
+          workTime = formatMinutesJa(leaveInfo.creditMinutes);
+          label = leaveLabelWithCredit(leaveInfo);
+        }
+        workTime += leaveLabelHtml(label);
+      }
     }
 
     if (metrics.workMinutes != null) totalOvertimeMinutes += metrics.overtimeMinutes;

@@ -188,7 +188,7 @@ async function computeLeaveDays(employeeId, startDate, endDate, recordDates) {
 
     const leaveInfo = leaveInfoForDate(dateStr, leaves, null);
     if (leaveInfo) {
-      leaveDays.push({ date: dateStr, label: leaveInfo.label });
+      leaveDays.push({ date: dateStr, label: leaveLabelWithCredit(leaveInfo) });
     } else if (dateStr >= DETAIL_MISSING_START_DATE && !(empRes.data.hire_date && dateStr < empRes.data.hire_date)) {
       // 出勤すべき日なのに打刻も休暇もない日(今日はまだ打刻前の可能性があるので別表示)
       leaveDays.push({ date: dateStr, label: dateStr === today ? '本日未打刻' : '打刻なし', missing: true, isToday: dateStr === today });
@@ -255,7 +255,15 @@ async function showEmployeeDetail(employeeId, employeeName, monthOffset = 0) {
         if (leaveInfo) {
           if (leaveInfo.half === 'am') inCell += leaveLabelHtml(leaveInfo.label);
           else if (leaveInfo.half === 'pm') outCell = (r.clock_out ? outCell : '') + leaveLabelHtml(leaveInfo.label);
-          else workTime += leaveLabelHtml(leaveInfo.label);
+          else {
+            // 出張で、退勤が無く勤務時間を計算できない日は、所定の時間(8時間)に補正する
+            let label = leaveInfo.label;
+            if (leaveInfo.creditMinutes && metrics.workMinutes == null && !isWeekendDate(r.date)) {
+              workTime = formatMinutesJa(leaveInfo.creditMinutes);
+              label = leaveLabelWithCredit(leaveInfo);
+            }
+            workTime += leaveLabelHtml(label);
+          }
         }
         return { date: r.date, html: `
         <tr>
@@ -804,9 +812,18 @@ async function exportExcel() {
 
     const inTime = formatTimeJa(metrics.adjustedIn);
     const outTime = formatTimeJa(metrics.adjustedOut);
-    const workTime = metrics.workMinutes != null ? formatMinutesJa(metrics.workMinutes) : '';
-    const overtimeTime = metrics.workMinutes != null ? formatMinutesJa(metrics.overtimeMinutes) : '';
     const isHoliday = isHolidayFor(r.date, department);
+    // 出張で、退勤が無く勤務時間を計算できない日(土日・休日は除く)は、所定の時間(8時間、半日出張は4時間)に補正する
+    const creditMinutes = (metrics.workMinutes == null && leaveInfo && leaveInfo.creditMinutes && !isHoliday) ? leaveInfo.creditMinutes : 0;
+    let workTime = '';
+    let overtimeTime = '';
+    if (metrics.workMinutes != null) {
+      workTime = formatMinutesJa(metrics.workMinutes);
+      overtimeTime = formatMinutesJa(metrics.overtimeMinutes);
+    } else if (creditMinutes) {
+      workTime = formatMinutesJa(creditMinutes);
+      overtimeTime = formatMinutesJa(0);
+    }
     const holidayWork = metrics.workMinutes != null && isHoliday ? '○' : '';
 
     if (metrics.workMinutes != null) {
@@ -814,6 +831,9 @@ async function exportExcel() {
       group.workMinutesTotal += metrics.workMinutes;
       group.overtimeMinutesTotal += metrics.overtimeMinutes;
       group.breakMinutesTotal += metrics.breakMinutes;
+    } else if (creditMinutes) {
+      group.weekdayDays++;
+      group.workMinutesTotal += creditMinutes;
     }
 
     // 半休は、午前休を出勤時刻の欄、午後休を退勤時刻の欄に表示する。有給・出張・特別休暇の日は備考の欄に表示する
@@ -823,7 +843,7 @@ async function exportExcel() {
     if (leaveInfo) {
       if (leaveInfo.half === 'am') inCell = `${inTime}(${leaveInfo.label})`;
       else if (leaveInfo.half === 'pm') outCell = r.clock_out ? `${outTime}(${leaveInfo.label})` : leaveInfo.label;
-      else remark = leaveInfo.label;
+      else remark = creditMinutes ? leaveLabelWithCredit(leaveInfo) : leaveInfo.label;
     }
 
     group.rows.push({
@@ -849,7 +869,17 @@ async function exportExcel() {
         if (isHolidayFor(dateStr, group.department)) continue;
         const info = leaveInfoForDate(dateStr, empLeaves, null);
         if (!info) continue;
-        group.rows.push({ '日付': dateStr, '現場': '', '出勤時刻': '', '退勤時刻': '', '勤務時間': '', '残業時間': '', '休日出勤': '', '備考': info.label });
+        // 出張で打刻が無い日は、所定の時間(8時間、半日出張は4時間)に補正して、出勤日数と勤務時間に数える
+        const credit = info.creditMinutes || 0;
+        if (credit) {
+          group.weekdayDays++;
+          group.workMinutesTotal += credit;
+        }
+        group.rows.push({
+          '日付': dateStr, '現場': '', '出勤時刻': '', '退勤時刻': '',
+          '勤務時間': credit ? formatMinutesJa(credit) : '', '残業時間': credit ? formatMinutesJa(0) : '', '休日出勤': '',
+          '備考': leaveLabelWithCredit(info)
+        });
       }
     }
     group.rows.sort((a, b) => a['日付'] < b['日付'] ? -1 : a['日付'] > b['日付'] ? 1 : 0);
